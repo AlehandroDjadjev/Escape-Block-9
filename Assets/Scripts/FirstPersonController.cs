@@ -14,6 +14,11 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private float jumpHeight = 1.3f;
     [SerializeField] private float gravity = -20f;
 
+    [Header("Sneak")]
+    [SerializeField] private float sneakSpeedMultiplier = 0.55f;
+    [SerializeField] private float sneakHeightMultiplier = 0.7f;
+    [SerializeField] private float stanceTransitionSpeed = 10f;
+
     [Header("Look")]
     [SerializeField] private Transform cameraPivot;
     [SerializeField] private float mouseSensitivity = 120f;
@@ -24,14 +29,25 @@ public class FirstPersonController : MonoBehaviour
     private float currentSprintBonus;
     private float verticalVelocity;
     private float pitch;
+    private bool isSneaking;
+    private float standingHeight;
+    private Vector3 standingCenter;
+    private Vector3 standingCameraLocalPosition;
 
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        standingHeight = characterController.height;
+        standingCenter = characterController.center;
 
         if (cameraPivot == null && Camera.main != null)
         {
             cameraPivot = Camera.main.transform;
+        }
+
+        if (cameraPivot != null)
+        {
+            standingCameraLocalPosition = cameraPivot.localPosition;
         }
 
         Cursor.lockState = CursorLockMode.Locked;
@@ -41,6 +57,7 @@ public class FirstPersonController : MonoBehaviour
     private void Update()
     {
         HandleLook();
+        HandleStance();
         HandleMovement();
     }
 
@@ -75,12 +92,13 @@ public class FirstPersonController : MonoBehaviour
         float moveZ = moveAxes.y;
         Vector3 moveInput = (transform.right * moveX + transform.forward * moveZ).normalized;
 
-        bool sprintHeld = IsSprintHeld();
+        bool sprintHeld = IsSprintHeld() && !isSneaking;
         float targetBonus = sprintHeld ? maxSprintBonus : 0f;
         float accel = sprintHeld ? sprintAcceleration : sprintDeceleration;
         currentSprintBonus = Mathf.MoveTowards(currentSprintBonus, targetBonus, accel * Time.deltaTime);
 
-        float currentSpeed = baseMoveSpeed * (1f + currentSprintBonus);
+        float stanceSpeed = isSneaking ? sneakSpeedMultiplier : 1f;
+        float currentSpeed = baseMoveSpeed * stanceSpeed * (1f + currentSprintBonus);
         Vector3 horizontalVelocity = moveInput * currentSpeed;
 
         if (characterController.isGrounded)
@@ -99,6 +117,35 @@ public class FirstPersonController : MonoBehaviour
         verticalVelocity += gravity * Time.deltaTime;
         Vector3 velocity = horizontalVelocity + Vector3.up * verticalVelocity;
         characterController.Move(velocity * Time.deltaTime);
+    }
+
+    private void HandleStance()
+    {
+        isSneaking = IsSneakHeld();
+
+        float targetHeight = isSneaking ? standingHeight * sneakHeightMultiplier : standingHeight;
+        Vector3 targetCenter = new Vector3(standingCenter.x, targetHeight * 0.5f, standingCenter.z);
+
+        characterController.height = Mathf.MoveTowards(
+            characterController.height,
+            targetHeight,
+            stanceTransitionSpeed * Time.deltaTime);
+
+        characterController.center = Vector3.MoveTowards(
+            characterController.center,
+            targetCenter,
+            stanceTransitionSpeed * Time.deltaTime);
+
+        if (cameraPivot != null)
+        {
+            float targetCameraY = isSneaking
+                ? standingCameraLocalPosition.y - (standingHeight - targetHeight)
+                : standingCameraLocalPosition.y;
+
+            Vector3 camLocal = cameraPivot.localPosition;
+            camLocal.y = Mathf.MoveTowards(camLocal.y, targetCameraY, stanceTransitionSpeed * Time.deltaTime);
+            cameraPivot.localPosition = camLocal;
+        }
     }
 
     private static Vector2 ReadMoveAxes()
@@ -132,5 +179,15 @@ public class FirstPersonController : MonoBehaviour
     private static bool IsJumpPressed()
     {
         return Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame;
+    }
+
+    private static bool IsSneakHeld()
+    {
+        if (Keyboard.current == null)
+        {
+            return false;
+        }
+
+        return Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
     }
 }
