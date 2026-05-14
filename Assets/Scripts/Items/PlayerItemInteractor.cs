@@ -7,6 +7,8 @@ public class PlayerItemInteractor : MonoBehaviour
     [SerializeField] private float interactRadius = 2.2f;
     [SerializeField] private Camera playerCamera;
     [SerializeField] private PickupPromptUI promptUi;
+    [SerializeField] private DialogueChoiceUI dialogueChoiceUi;
+    [SerializeField] private SubtitleUI subtitleUi;
 
     private SingleItemInventory inventory;
     private ItemPickup currentTarget;
@@ -30,10 +32,27 @@ public class PlayerItemInteractor : MonoBehaviour
                 promptUi = ui.AddComponent<PickupPromptUI>();
             }
         }
+
+        if (dialogueChoiceUi == null)
+        {
+            dialogueChoiceUi = FindAnyObjectByType<DialogueChoiceUI>();
+        }
+
+        if (subtitleUi == null)
+        {
+            subtitleUi = FindAnyObjectByType<SubtitleUI>();
+        }
     }
 
     private void Update()
     {
+        if (ShouldYieldCursorToDialogue())
+        {
+            promptUi.Hide();
+            currentTarget = null;
+            return;
+        }
+
         if (inventory == null || inventory.HasItem)
         {
             promptUi.Hide();
@@ -51,7 +70,7 @@ public class PlayerItemInteractor : MonoBehaviour
 
         string prompt = $"{currentTarget.PickupPromptText} {currentTarget.ItemDisplayName}";
         promptUi.Show(currentTarget.PickupKeyLabel, prompt, TryPickupCurrentTarget);
-        SetPromptCursorMode(true);
+        SetPromptCursorMode(false);
 
         if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
         {
@@ -114,5 +133,12 @@ public class PlayerItemInteractor : MonoBehaviour
         isPromptCursorMode = enabled;
         Cursor.lockState = enabled ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = enabled;
+    }
+
+    private bool ShouldYieldCursorToDialogue()
+    {
+        bool choiceVisible = dialogueChoiceUi != null && dialogueChoiceUi.IsVisible;
+        bool subtitlePlaying = subtitleUi != null && subtitleUi.IsPlaying;
+        return choiceVisible || subtitlePlaying;
     }
 }

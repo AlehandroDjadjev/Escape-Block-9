@@ -1,0 +1,79 @@
+{
+  "rootNodeId": "start",
+  "nodes": [
+    {
+      "id": "start",
+      "lines": [
+        "Alright, quick test. Choose what you want to ask me first."
+      ],
+      "choices": [
+        {
+          "text": "How do I move faster?",
+          "nextNodeId": "movement_fast"
+        },
+        {
+          "text": "How do I stay hidden?",
+          "nextNodeId": "movement_sneak"
+        },
+        {
+          "text": "What if I just want to leave?",
+          "nextNodeId": "exit_early"
+        }
+      ]
+    },
+    {
+      "id": "movement_fast",
+      "lines": [
+        "Hold Shift to sprint. You accelerate into it and top out at fifty percent above base speed.",
+        "Use it in long straight sections where you can see ahead."
+      ],
+      "choices": [
+        {
+          "text": "Got it. Tell me about sneaking too.",
+          "nextNodeId": "movement_sneak"
+        },
+        {
+          "text": "That is enough. End conversation.",
+          "nextNodeId": "end"
+        }
+      ]
+    },
+    {
+      "id": "movement_sneak",
+      "lines": [
+        "Hold Ctrl to sneak. You move slower and lower your stance.",
+        "Use sneaking near characters so your approach feels deliberate and controlled."
+      ],
+      "choices": [
+        {
+          "text": "Now explain item pickup in one line.",
+          "nextNodeId": "item_tip"
+        },
+        {
+          "text": "Done. End conversation.",
+          "nextNodeId": "end"
+        }
+      ]
+    },
+    {
+      "id": "item_tip",
+      "lines": [
+        "When you are near an item, follow the prompt and pick it up. It goes to your hand and one-slot inventory."
+      ],
+      "nextNodeId": "end"
+    },
+    {
+      "id": "exit_early",
+      "lines": [
+        "Fair enough. Then leave now and prove you can navigate without extra hints."
+      ],
+      "nextNodeId": "end"
+    },
+    {
+      "id": "end",
+      "lines": [
+        "Test complete. Start another talk if you want a different branch."
+      ]
+    }
+  ]
+}

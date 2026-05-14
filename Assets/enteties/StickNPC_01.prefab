@@ -27,13 +27,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 816263943713941710}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.26, y: 1.3, z: 0}
-  m_LocalScale: {x: 0.5, y: 0.06, z: 0.04}
+  m_LocalRotation: {x: -0, y: -0.27351394, z: -0, w: 0.9618681}
+  m_LocalPosition: {x: 0.367, y: 1.2999997, z: 0.221}
+  m_LocalScale: {x: 0.85835, y: 0.06, z: 0.04}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2010905847168824939}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -31.747, z: 0}
 --- !u!33 &8862796173563182240
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -121,6 +121,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2010905847168824939}
+  - component: {fileID: 7611217124478938152}
+  - component: {fileID: 5501324258733999305}
   m_Layer: 0
   m_Name: StickNPC_01
   m_TagString: Untagged
@@ -136,9 +138,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1766151322025943333}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 1, z: 0, w: -0.00000004371139}
+  m_LocalRotation: {x: 0, y: -1, z: 0, w: 0}
   m_LocalPosition: {x: 28.95, y: 7.31, z: 21.4}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.0625, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 9042478342723339342}
@@ -148,7 +150,54 @@ Transform:
   - {fileID: 5591858536063687703}
   - {fileID: 7727100462692620872}
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -180, z: 0}
+--- !u!114 &7611217124478938152
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1766151322025943333}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6b4e55253e36ac94a8fd911b072866af, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EntitySerializer
+  saveKeyPrefix: entity_state_
+--- !u!114 &5501324258733999305
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1766151322025943333}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 71f536d3e2e57a74b8d72ebfd713d2d5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Entity
+  entityId: teacher_01
+  entityName: Teacher
+  dialogueJson: '{"rootNodeId":"start","nodes":[{"id":"start","lines":["Alright,
+    quick test. Choose what you want to ask me first."],"choices":[{"text":"How do
+    I move faster?","nextNodeId":"movement_fast"},{"text":"How do I stay hidden?","nextNodeId":"movement_sneak"},{"text":"What
+    if I just want to leave?","nextNodeId":"exit_early"}]},{"id":"movement_fast","lines":["Hold
+    Shift to sprint. You accelerate into it and top out at fifty percent above base
+    speed.","Use it in long straight sections where you can see ahead."],"choices":[{"text":"Got
+    it. Tell me about sneaking too.","nextNodeId":"movement_sneak"},{"text":"That
+    is enough. End conversation.","nextNodeId":"end"}]},{"id":"movement_sneak","lines":["Hold
+    Ctrl to sneak. You move slower and lower your stance.","Use sneaking near characters
+    so your approach feels deliberate and controlled."],"choices":[{"text":"Now explain
+    item pickup in one line.","nextNodeId":"item_tip"},{"text":"Done. End conversation.","nextNodeId":"end"}]},{"id":"item_tip","lines":["When
+    you are near an item, follow the prompt and pick it up. It goes to your hand
+    and one-slot inventory."],"nextNodeId":"end"},{"id":"exit_early","lines":["Fair
+    enough. Then leave now and prove you can navigate without extra hints."],"nextNodeId":"end"},{"id":"end","lines":["Test
+    complete. Start another talk if you want a different branch."]}]}'
+  dialogueTreeJson: {fileID: 0}
+  talkKeyLabel: F
+  talkPromptText: Talk to
+  talkRadius: 2.8
+  talkPoint: {fileID: 0}
 --- !u!1 &1812526764703391790
 GameObject:
   m_ObjectHideFlags: 0
@@ -178,8 +227,8 @@ Transform:
   m_GameObject: {fileID: 1812526764703391790}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.9, z: 0}
-  m_LocalScale: {x: 0.45, y: 0.45, z: 0.02}
+  m_LocalPosition: {x: 0, y: 2.048, z: 0}
+  m_LocalScale: {x: 0.87426, y: 0.87426, z: 0.038856}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2010905847168824939}
@@ -274,7 +323,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 79d086a21b93a4440873a322d0016b94, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlaneHeadImage
-  headImage: {fileID: 2800000, guid: 2882a708027f23b468e9d30fbb307163, type: 3}
+  headImage: {fileID: 2800000, guid: 1fa93c7028ea23540b9a47c1ae3a7ee6, type: 3}
   tint: {r: 1, g: 1, b: 1, a: 1}
 --- !u!1 &3802692365834930043
 GameObject:
@@ -305,7 +354,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 1.1, z: 0}
-  m_LocalScale: {x: 0.22, y: 1.1, z: 0.05}
+  m_LocalScale: {x: 0.062854, y: 1.1, z: 0.05}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2010905847168824939}
@@ -415,13 +464,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6071169196719482303}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.08, y: 0.42, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0.16396303, w: 0.9864665}
+  m_LocalPosition: {x: -0.123, y: 0.311, z: -0}
   m_LocalScale: {x: 0.08, y: 0.75, z: 0.04}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2010905847168824939}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: -18.874}
 --- !u!33 &8165590387249986937
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -527,13 +576,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6371923061934788628}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.26, y: 1.3, z: 0}
-  m_LocalScale: {x: 0.5, y: 0.06, z: 0.04}
+  m_LocalRotation: {x: 0, y: 0.27376854, z: -0, w: 0.9617956}
+  m_LocalPosition: {x: -0.352, y: 1.2999997, z: 0.231}
+  m_LocalScale: {x: 0.89275, y: 0.06, z: 0.04}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2010905847168824939}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 31.777, z: 0}
 --- !u!33 &6866951295149857436
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -639,13 +688,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6648673453392564388}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.08, y: 0.42, z: 0}
+  m_LocalRotation: {x: -0, y: 3.552714e-15, z: 0.14429599, w: 0.98953456}
+  m_LocalPosition: {x: 0.098, y: 0.328, z: -0}
   m_LocalScale: {x: 0.08, y: 0.75, z: 0.04}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2010905847168824939}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 16.593}
 --- !u!33 &3753979210789088164
 MeshFilter:
   m_ObjectHideFlags: 0
