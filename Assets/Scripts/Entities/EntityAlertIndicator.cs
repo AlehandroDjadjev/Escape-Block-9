@@ -30,6 +30,9 @@ public class EntityAlertIndicator : MonoBehaviour
     [Header("Animator Sync")]
     [SerializeField] private Animator animator;
     [SerializeField] private bool useAnimatorSuspicion = true;
+    [SerializeField] private bool alignStateToAnimatorStates = true;
+    [SerializeField] private string[] suspiciousStateNames = { "Suspicious" };
+    [SerializeField] private string[] aggroStateNames = { "Gnevna", "Aggro" };
     [SerializeField] private string suspicionParameter = "Suspicion";
     [SerializeField] private float aggroThreshold = 2.5f;
     [SerializeField] private float suspiciousThreshold = 0.01f;
@@ -435,6 +438,18 @@ public class EntityAlertIndicator : MonoBehaviour
             return;
         }
 
+        AlertState? byAnimationState = ResolveStateFromAnimatorState();
+        if (byAnimationState.HasValue)
+        {
+            if (byAnimationState.Value != state)
+            {
+                state = byAnimationState.Value;
+                ApplyState();
+            }
+
+            return;
+        }
+
         if (!hasSuspicionParameter)
         {
             return;
@@ -450,6 +465,65 @@ public class EntityAlertIndicator : MonoBehaviour
             state = nextState;
             ApplyState();
         }
+    }
+
+    private AlertState? ResolveStateFromAnimatorState()
+    {
+        if (!alignStateToAnimatorStates || animator == null)
+        {
+            return null;
+        }
+
+        AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(0);
+        if (MatchesAnyStateName(current, aggroStateNames))
+        {
+            return AlertState.Aggro;
+        }
+
+        if (MatchesAnyStateName(current, suspiciousStateNames))
+        {
+            return AlertState.Suspicious;
+        }
+
+        if (animator.IsInTransition(0))
+        {
+            AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(0);
+            if (MatchesAnyStateName(next, aggroStateNames))
+            {
+                return AlertState.Aggro;
+            }
+
+            if (MatchesAnyStateName(next, suspiciousStateNames))
+            {
+                return AlertState.Suspicious;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool MatchesAnyStateName(AnimatorStateInfo info, string[] names)
+    {
+        if (names == null || names.Length == 0)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < names.Length; i++)
+        {
+            string name = names[i];
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            if (info.IsName(name) || info.shortNameHash == Animator.StringToHash(name))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool ShouldDisplayDot()
