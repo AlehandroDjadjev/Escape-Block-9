@@ -12,6 +12,8 @@ public static class BuildingGenerator
     private const string StairsPrefabPath = "Assets/arhitektura/Generated/Stairs.prefab";
     private const string BuildingPrefabPath = "Assets/arhitektura/Generated/Block9Building.prefab";
     private const string BathroomPrefabPath = "Assets/arhitektura/Generated/Bathroom.prefab";
+    private const string ShopPrefabPath = "Assets/arhitektura/Generated/Shop.prefab";
+    private const string ExitLobbyPrefabPath = "Assets/arhitektura/Generated/ExitLobby.prefab";
 
     private const float RoomWidth = 8f;
     private const float RoomDepth = 7f;
@@ -21,7 +23,7 @@ public static class BuildingGenerator
     private const float FloorThickness = 0.15f;
     private const float WindowSillHeight = 1f;
     private const float WindowHeight = 1.5f;
-    private const int RoomsPerSide = 4;
+    private const int RoomsPerSide = 6;
     private const int Floors = 2;
     private const float StairWidth = 1.2f;
     private const int StairSteps = 18;
@@ -70,7 +72,9 @@ public static class BuildingGenerator
         GameObject roomPrefab = BuildAndSaveRoom(mats, doorPrefab);
         GameObject stairsPrefab = BuildAndSaveStairs(mats);
         GameObject bathroomPrefab = BuildAndSaveBathroom(mats, doorPrefab);
-        GameObject buildingPrefab = BuildAndSaveBuilding(roomPrefab, stairsPrefab, bathroomPrefab, doorPrefab, mats);
+        GameObject shopPrefab = BuildAndSaveShop(mats, doorPrefab);
+        GameObject exitLobbyPrefab = BuildAndSaveExitLobby(mats, doorPrefab);
+        GameObject buildingPrefab = BuildAndSaveBuilding(roomPrefab, stairsPrefab, bathroomPrefab, shopPrefab, exitLobbyPrefab, doorPrefab, mats);
 
         var existing = GameObject.Find("Block9Building");
         if (existing != null) Object.DestroyImmediate(existing);
@@ -105,6 +109,12 @@ public static class BuildingGenerator
         public Material WhiteFixtures;
         public Material BathroomFloor;
         public Material ExitSign;
+        public Material ShopShelf;
+        public Material ShopCounter;
+        public Material MonsterCan;
+        public Material WaterBottle;
+        public Material ColaCan;
+        public Material Sandwich;
     }
 
     private static Mats CreateMaterials()
@@ -129,6 +139,12 @@ public static class BuildingGenerator
             WhiteFixtures = MakeMat("Mat_WhiteFixtures", new Color(0.96f, 0.96f, 0.96f)),
             BathroomFloor = MakeMat("Mat_BathroomFloor", new Color(0.18f, 0.20f, 0.25f)),
             ExitSign = MakeMat("Mat_ExitSign", new Color(0.05f, 0.6f, 0.25f)),
+            ShopShelf = MakeMat("Mat_ShopShelf", new Color(0.55f, 0.4f, 0.25f)),
+            ShopCounter = MakeMat("Mat_ShopCounter", new Color(0.85f, 0.85f, 0.85f)),
+            MonsterCan = MakeMat("Mat_MonsterCan", new Color(0.1f, 0.7f, 0.2f)),
+            WaterBottle = MakeMat("Mat_WaterBottle", new Color(0.65f, 0.85f, 0.95f)),
+            ColaCan = MakeMat("Mat_ColaCan", new Color(0.78f, 0.1f, 0.12f)),
+            Sandwich = MakeMat("Mat_Sandwich", new Color(0.92f, 0.78f, 0.45f)),
         };
     }
 
@@ -486,6 +502,214 @@ public static class BuildingGenerator
         }
     }
 
+    // ===================== SHOP =====================
+    private static GameObject BuildAndSaveShop(Mats mats, GameObject doorPrefab)
+    {
+        var root = new GameObject("Shop");
+
+        MakeCube("Floor", root.transform,
+            new Vector3(RoomWidth / 2f, -FloorThickness / 2f, RoomDepth / 2f),
+            new Vector3(RoomWidth, FloorThickness, RoomDepth),
+            mats.Floor);
+
+        MakeCube("Ceiling", root.transform,
+            new Vector3(RoomWidth / 2f, RoomHeight + FloorThickness / 2f, RoomDepth / 2f),
+            new Vector3(RoomWidth, FloorThickness, RoomDepth),
+            mats.Ceiling);
+
+        MakeCube("WallLeft", root.transform,
+            new Vector3(-WallThickness / 2f, RoomHeight / 2f, RoomDepth / 2f),
+            new Vector3(WallThickness, RoomHeight, RoomDepth),
+            mats.WallRed);
+
+        MakeCube("WallRight", root.transform,
+            new Vector3(RoomWidth + WallThickness / 2f, RoomHeight / 2f, RoomDepth / 2f),
+            new Vector3(WallThickness, RoomHeight, RoomDepth),
+            mats.WallRed);
+
+        BuildExternalWallWithWindows(root.transform, mats);
+        BuildDoorWall(root.transform, mats, doorPrefab);
+
+        BuildShopInterior(root.transform, mats);
+
+        for (int i = 0; i < 2; i++)
+        {
+            float z = RoomDepth * (0.33f + i * 0.34f);
+            MakeCube($"CeilingLight_{i}", root.transform,
+                new Vector3(RoomWidth / 2f, RoomHeight - 0.05f, z),
+                new Vector3(1.2f, 0.05f, 0.4f),
+                mats.Screen);
+        }
+
+        var prefab = PrefabUtility.SaveAsPrefabAsset(root, ShopPrefabPath);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
+    private static void BuildShopInterior(Transform parent, Mats mats)
+    {
+        // Counter near the corridor (separates customer area from the cashier area).
+        float counterZ = RoomDepth - 2f;
+        MakeCube("Counter", parent,
+            new Vector3(RoomWidth / 2f, 0.45f, counterZ),
+            new Vector3(RoomWidth - 1.5f, 0.9f, 0.7f),
+            mats.ShopCounter);
+
+        // Counter top
+        MakeCube("CounterTop", parent,
+            new Vector3(RoomWidth / 2f, 0.93f, counterZ),
+            new Vector3(RoomWidth - 1.4f, 0.04f, 0.78f),
+            mats.WindowFrame);
+
+        // Cash register on the counter
+        MakeCube("CashRegister", parent,
+            new Vector3(RoomWidth - 2f, 1.1f, counterZ),
+            new Vector3(0.5f, 0.35f, 0.35f),
+            mats.Blackboard);
+
+        // Three shelves along the +X wall (the right wall) facing the customer area.
+        int shelfCount = 3;
+        float shelfDepth = 0.4f;
+        float shelfThickness = 0.04f;
+        float shelfWidth = 3.5f;
+        float shelfX = RoomWidth - 0.05f - shelfDepth / 2f;
+        for (int s = 0; s < shelfCount; s++)
+        {
+            float shelfY = 0.6f + s * 0.7f;
+            MakeCube($"Shelf_{s}", parent,
+                new Vector3(shelfX, shelfY, RoomDepth * 0.4f),
+                new Vector3(shelfDepth, shelfThickness, shelfWidth),
+                mats.ShopShelf);
+
+            // Stock the shelf with various drinks/snacks.
+            float[] zSpots = {
+                RoomDepth * 0.4f - shelfWidth / 2f + 0.3f,
+                RoomDepth * 0.4f - shelfWidth / 2f + 0.9f,
+                RoomDepth * 0.4f - shelfWidth / 2f + 1.5f,
+                RoomDepth * 0.4f - shelfWidth / 2f + 2.1f,
+                RoomDepth * 0.4f - shelfWidth / 2f + 2.7f,
+                RoomDepth * 0.4f - shelfWidth / 2f + 3.2f,
+            };
+            Material[] cycle = s switch
+            {
+                0 => new[] { mats.MonsterCan, mats.MonsterCan, mats.ColaCan, mats.ColaCan, mats.WaterBottle, mats.WaterBottle },
+                1 => new[] { mats.WaterBottle, mats.ColaCan, mats.MonsterCan, mats.WaterBottle, mats.ColaCan, mats.MonsterCan },
+                _ => new[] { mats.Sandwich, mats.Sandwich, mats.Sandwich, mats.Sandwich, mats.Sandwich, mats.Sandwich },
+            };
+            for (int i = 0; i < zSpots.Length; i++)
+            {
+                bool isSandwich = cycle[i] == mats.Sandwich;
+                Vector3 size = isSandwich ? new Vector3(0.25f, 0.08f, 0.35f) : new Vector3(0.18f, 0.32f, 0.18f);
+                float yOffset = isSandwich ? 0.05f : 0.18f;
+                MakeCube($"Item_{s}_{i}", parent,
+                    new Vector3(shelfX - 0.05f, shelfY + shelfThickness / 2f + yOffset, zSpots[i]),
+                    size,
+                    cycle[i]);
+            }
+        }
+
+        // SHOP sign above the counter, hanging from the ceiling.
+        MakeCube("ShopSign", parent,
+            new Vector3(RoomWidth / 2f, RoomHeight - 0.4f, counterZ - 0.5f),
+            new Vector3(2.5f, 0.5f, 0.06f),
+            mats.ExitSign);
+    }
+
+    // ===================== EXIT LOBBY =====================
+    private static GameObject BuildAndSaveExitLobby(Mats mats, GameObject doorPrefab)
+    {
+        var root = new GameObject("ExitLobby");
+
+        MakeCube("Floor", root.transform,
+            new Vector3(RoomWidth / 2f, -FloorThickness / 2f, RoomDepth / 2f),
+            new Vector3(RoomWidth, FloorThickness, RoomDepth),
+            mats.Floor);
+
+        MakeCube("Ceiling", root.transform,
+            new Vector3(RoomWidth / 2f, RoomHeight + FloorThickness / 2f, RoomDepth / 2f),
+            new Vector3(RoomWidth, FloorThickness, RoomDepth),
+            mats.Ceiling);
+
+        MakeCube("WallLeft", root.transform,
+            new Vector3(-WallThickness / 2f, RoomHeight / 2f, RoomDepth / 2f),
+            new Vector3(WallThickness, RoomHeight, RoomDepth),
+            mats.WallRed);
+
+        MakeCube("WallRight", root.transform,
+            new Vector3(RoomWidth + WallThickness / 2f, RoomHeight / 2f, RoomDepth / 2f),
+            new Vector3(WallThickness, RoomHeight, RoomDepth),
+            mats.WallRed);
+
+        // Exterior wall (-Z) with the EXIT door cut into it (instead of windows).
+        BuildExitDoorExteriorWall(root.transform, mats, doorPrefab);
+
+        // Corridor-side door (same as Room)
+        BuildDoorWall(root.transform, mats, doorPrefab);
+
+        for (int i = 0; i < 2; i++)
+        {
+            float z = RoomDepth * (0.33f + i * 0.34f);
+            MakeCube($"CeilingLight_{i}", root.transform,
+                new Vector3(RoomWidth / 2f, RoomHeight - 0.05f, z),
+                new Vector3(1.2f, 0.05f, 0.4f),
+                mats.Screen);
+        }
+
+        var prefab = PrefabUtility.SaveAsPrefabAsset(root, ExitLobbyPrefabPath);
+        Object.DestroyImmediate(root);
+        return prefab;
+    }
+
+    private static void BuildExitDoorExteriorWall(Transform parent, Mats mats, GameObject doorPrefab)
+    {
+        // External wall is at z = -WallThickness/2 (the room's -Z face).
+        float wallZ = -WallThickness / 2f;
+        float doorOpeningWidth = 1.2f;
+        float doorOpeningHeight = 2.2f;
+        float doorCenterX = RoomWidth / 2f;
+        float doorLeftEdge = doorCenterX - doorOpeningWidth / 2f;
+        float doorRightEdge = doorCenterX + doorOpeningWidth / 2f;
+
+        // Left wall segment
+        MakeCube("ExitDoorWall_Left", parent,
+            new Vector3(doorLeftEdge / 2f, RoomHeight / 2f, wallZ),
+            new Vector3(doorLeftEdge, RoomHeight, WallThickness),
+            mats.WallRed);
+
+        // Right wall segment
+        float rightSegW = RoomWidth - doorRightEdge;
+        MakeCube("ExitDoorWall_Right", parent,
+            new Vector3(doorRightEdge + rightSegW / 2f, RoomHeight / 2f, wallZ),
+            new Vector3(rightSegW, RoomHeight, WallThickness),
+            mats.WallRed);
+
+        // Transom above door
+        float transomH = RoomHeight - doorOpeningHeight;
+        MakeCube("ExitDoorWall_Transom", parent,
+            new Vector3(doorCenterX, doorOpeningHeight + transomH / 2f, wallZ),
+            new Vector3(doorOpeningWidth, transomH, WallThickness),
+            mats.WallRed);
+
+        // EXIT sign above the door (inside the room)
+        MakeCube("ExitDoor_Sign", parent,
+            new Vector3(doorCenterX, doorOpeningHeight + 0.25f, 0.05f),
+            new Vector3(0.8f, 0.3f, 0.04f),
+            mats.ExitSign);
+
+        // The escape door itself. Use the door prefab; mount it like the corridor door,
+        // but on the external wall and opening outward (no rotation).
+        if (doorPrefab != null)
+        {
+            var door = (GameObject)PrefabUtility.InstantiatePrefab(doorPrefab, parent);
+            door.name = "ExitDoor";
+            // Door hinge at left edge of opening on the external wall. Door's local +Z is door length.
+            // We need door to span +X across opening, so rotate -90° around Y (same as corridor room doors).
+            door.transform.localPosition = new Vector3(doorLeftEdge, 0, 0);
+            door.transform.localRotation = Quaternion.Euler(0, -90f, 0);
+            door.transform.localScale = new Vector3(1, 1, doorOpeningWidth);
+        }
+    }
+
     // ===================== STAIRS =====================
     private static GameObject BuildAndSaveStairs(Mats mats)
     {
@@ -531,22 +755,38 @@ public static class BuildingGenerator
 
     // ===================== BUILDING =====================
     private const int BathroomRoomIndex = 1; // Room slot on the north side that becomes a bathroom on each floor.
+    private const int ShopFloor0NorthIndex = 0; // NW corner of floor 0 (ground floor) becomes the shop.
+    // Floor 0 east-end north slot (RoomsPerSide-1) becomes the exit lobby (NE corner).
 
-    private static GameObject BuildAndSaveBuilding(GameObject roomPrefab, GameObject stairsPrefab, GameObject bathroomPrefab, GameObject doorPrefab, Mats mats)
+    // Π-shape geometry: top connector (horizontal) + two south-extending wings.
+    private const int ConnectorRoomsPerSide = 5;      // 5×8 = 40m connector length
+    private const int WingRoomsPerSide = 3;           // 3×8 = 24m wing length
+    private static readonly float ConnectorLength = ConnectorRoomsPerSide * RoomWidth;    // 40
+    private static readonly float ConnectorDepth = RoomDepth + CorridorWidth;             // 10 (north rooms + corridor only)
+    private static readonly float WingLength = WingRoomsPerSide * RoomWidth;              // 24
+    private static readonly float WingWidth = RoomDepth + CorridorWidth + RoomDepth;      // 17
+
+    private static GameObject BuildAndSaveBuilding(GameObject roomPrefab, GameObject stairsPrefab, GameObject bathroomPrefab, GameObject shopPrefab, GameObject exitLobbyPrefab, GameObject doorPrefab, Mats mats)
     {
         var root = new GameObject("Block9Building");
 
-        float buildingLength = RoomsPerSide * RoomWidth;             // 32
-        float buildingDepth = RoomDepth + CorridorWidth + RoomDepth;  // 17
-        float floorVerticalSize = RoomHeight + FloorThickness;        // 3.65
-        float corridorCenterZ = RoomDepth + CorridorWidth / 2f;       // 8.5
+        float floorVerticalSize = RoomHeight + FloorThickness;            // 3.65
+        float connectorCorridorCenterZ = RoomDepth + CorridorWidth / 2f;  // 8.5
 
-        // Stair tower geometry (consistent across floors)
-        float stairLength = StairSteps * StepRun;                     // 5.04
-        float stairBottomX = buildingLength - stairLength - 2.5f;     // 24.46 — leave 2.5m east buffer for the landing
-        float stairTopX = stairBottomX + stairLength;                 // 29.5
-        float stairZMin = corridorCenterZ - StairWidth / 2f;          // 7.9
-        float stairZMax = corridorCenterZ + StairWidth / 2f;          // 9.1
+        // Wing positions (south-extending from the connector ends)
+        float leftWingX = 0f;
+        float rightWingX = ConnectorLength - WingWidth;                   // 40 - 17 = 23
+        float wingStartZ = ConnectorDepth;                                // 10 (south edge of connector)
+        float wingEndZ = wingStartZ + WingLength;                         // 34
+        float leftWingCorridorCenterX = leftWingX + RoomDepth + CorridorWidth / 2f;   // 8.5
+        float rightWingCorridorCenterX = rightWingX + RoomDepth + CorridorWidth / 2f; // 31.5
+
+        // Stair tower geometry — stays in connector at east end of connector corridor.
+        float stairLength = StairSteps * StepRun;
+        float stairBottomX = ConnectorLength - stairLength - 2.5f;        // 32.46
+        float stairTopX = stairBottomX + stairLength;
+        float stairZMin = connectorCorridorCenterZ - StairWidth / 2f;
+        float stairZMax = connectorCorridorCenterZ + StairWidth / 2f;
 
         for (int f = 0; f < Floors; f++)
         {
@@ -554,86 +794,206 @@ public static class BuildingGenerator
             floorParent.transform.SetParent(root.transform, false);
             floorParent.transform.localPosition = new Vector3(0, f * floorVerticalSize, 0);
 
-            // -------- Floor 0: solid corridor floor, donut ceiling (hole over stairs) --------
-            // -------- Floor 1: donut corridor floor (hole over stairs), solid ceiling --------
+            // =========== TOP CONNECTOR ===========
+            // Connector corridor floor/ceiling — solid on floor 0, donut on floor 1 (stair hole).
             if (f == 0)
             {
-                MakeCube("CorridorFloor", floorParent.transform,
-                    new Vector3(buildingLength / 2f, -FloorThickness / 2f, corridorCenterZ),
-                    new Vector3(buildingLength, FloorThickness, CorridorWidth),
+                MakeCube("ConnectorCorridorFloor", floorParent.transform,
+                    new Vector3(ConnectorLength / 2f, -FloorThickness / 2f, connectorCorridorCenterZ),
+                    new Vector3(ConnectorLength, FloorThickness, CorridorWidth),
                     mats.Floor);
 
-                BuildDonutSlab(floorParent.transform, "CorridorCeiling", RoomHeight + FloorThickness / 2f,
-                    buildingLength, stairBottomX, stairTopX, stairZMin, stairZMax, corridorCenterZ, mats.Ceiling);
+                BuildDonutSlab(floorParent.transform, "ConnectorCorridorCeiling", RoomHeight + FloorThickness / 2f,
+                    ConnectorLength, stairBottomX, stairTopX, stairZMin, stairZMax, connectorCorridorCenterZ, mats.Ceiling);
             }
             else
             {
-                BuildDonutSlab(floorParent.transform, "CorridorFloor", -FloorThickness / 2f,
-                    buildingLength, stairBottomX, stairTopX, stairZMin, stairZMax, corridorCenterZ, mats.Floor);
+                BuildDonutSlab(floorParent.transform, "ConnectorCorridorFloor", -FloorThickness / 2f,
+                    ConnectorLength, stairBottomX, stairTopX, stairZMin, stairZMax, connectorCorridorCenterZ, mats.Floor);
 
-                MakeCube("CorridorCeiling", floorParent.transform,
-                    new Vector3(buildingLength / 2f, RoomHeight + FloorThickness / 2f, corridorCenterZ),
-                    new Vector3(buildingLength, FloorThickness, CorridorWidth),
+                MakeCube("ConnectorCorridorCeiling", floorParent.transform,
+                    new Vector3(ConnectorLength / 2f, RoomHeight + FloorThickness / 2f, connectorCorridorCenterZ),
+                    new Vector3(ConnectorLength, FloorThickness, CorridorWidth),
                     mats.Ceiling);
             }
 
-            // North side rooms — one slot is a bathroom on each floor.
-            for (int r = 0; r < RoomsPerSide; r++)
+            // Connector NORTH rooms — special slots on floor 0:
+            //   index 0 = Shop (NW corner of whole building)
+            //   index 1 = Bathroom (both floors)
+            //   index ConnectorRoomsPerSide-1 = ExitLobby (NE corner of whole building, floor 0 only)
+            int exitLobbyIndex = ConnectorRoomsPerSide - 1;
+            for (int r = 0; r < ConnectorRoomsPerSide; r++)
             {
-                GameObject sourcePrefab = (r == BathroomRoomIndex) ? bathroomPrefab : roomPrefab;
+                GameObject sourcePrefab = roomPrefab;
+                string roomName = $"Room_F{f}_N{r}";
+
+                if (r == BathroomRoomIndex)
+                {
+                    sourcePrefab = bathroomPrefab;
+                    roomName = $"Bathroom_F{f}_N";
+                }
+                else if (f == 0 && r == exitLobbyIndex)
+                {
+                    sourcePrefab = exitLobbyPrefab;
+                    roomName = $"ExitLobby_F{f}_N";
+                }
+                else if (f == 0 && r == ShopFloor0NorthIndex)
+                {
+                    sourcePrefab = shopPrefab;
+                    roomName = $"Shop_F{f}_N";
+                }
+
                 var room = (GameObject)PrefabUtility.InstantiatePrefab(sourcePrefab, floorParent.transform);
-                room.name = (r == BathroomRoomIndex) ? $"Bathroom_F{f}_N" : $"Room_F{f}_N{r}";
+                room.name = roomName;
                 room.transform.localPosition = new Vector3(r * RoomWidth, 0, 0);
                 room.transform.localRotation = Quaternion.identity;
             }
 
-            // South side rooms (180° rotated) — all classrooms.
-            for (int r = 0; r < RoomsPerSide; r++)
-            {
-                var room = (GameObject)PrefabUtility.InstantiatePrefab(roomPrefab, floorParent.transform);
-                room.name = $"Room_F{f}_S{r}";
-                room.transform.localPosition = new Vector3((r + 1) * RoomWidth, 0, buildingDepth);
-                room.transform.localRotation = Quaternion.Euler(0, 180, 0);
-            }
+            // Connector SOUTH wall (between corridor and wings/courtyard).
+            // Solid except at the wing-corridor entries (passage to each wing).
+            BuildConnectorSouthWall(floorParent.transform, mats,
+                leftWingCorridorCenterX, rightWingCorridorCenterX);
 
-            // Corridor end-cap walls.
-            // Floor 0: west wall has the escape door cut into it.
-            // Floor 1: solid west wall.
-            if (f == 0)
-            {
-                BuildEscapeDoorWall(floorParent.transform, mats, doorPrefab, corridorCenterZ);
-            }
-            else
-            {
-                MakeCube("CorridorWall_West", floorParent.transform,
-                    new Vector3(-WallThickness / 2f, RoomHeight / 2f, corridorCenterZ),
-                    new Vector3(WallThickness, RoomHeight, CorridorWidth),
-                    mats.WallRed);
-            }
-            MakeCube("CorridorWall_East", floorParent.transform,
-                new Vector3(buildingLength + WallThickness / 2f, RoomHeight / 2f, corridorCenterZ),
+            // Connector corridor end-cap walls (west/east, solid)
+            MakeCube("ConnectorWall_West", floorParent.transform,
+                new Vector3(-WallThickness / 2f, RoomHeight / 2f, connectorCorridorCenterZ),
                 new Vector3(WallThickness, RoomHeight, CorridorWidth),
                 mats.WallRed);
+            MakeCube("ConnectorWall_East", floorParent.transform,
+                new Vector3(ConnectorLength + WallThickness / 2f, RoomHeight / 2f, connectorCorridorCenterZ),
+                new Vector3(WallThickness, RoomHeight, CorridorWidth),
+                mats.WallRed);
+
+            // =========== LEFT WING ===========
+            BuildWing(floorParent.transform, "LeftWing", leftWingX, wingStartZ, f,
+                roomPrefab, mats);
+
+            // =========== RIGHT WING ===========
+            BuildWing(floorParent.transform, "RightWing", rightWingX, wingStartZ, f,
+                roomPrefab, mats);
         }
 
-        // Roof slab
-        MakeCube("Roof", root.transform,
-            new Vector3(buildingLength / 2f, Floors * floorVerticalSize + FloorThickness / 2f, buildingDepth / 2f),
-            new Vector3(buildingLength + 2 * WallThickness, FloorThickness, buildingDepth + 2 * WallThickness),
+        // =========== ROOF — covers connector + both wings ===========
+        float totalHeight = Floors * floorVerticalSize;
+        // Connector roof
+        MakeCube("Roof_Connector", root.transform,
+            new Vector3(ConnectorLength / 2f, totalHeight + FloorThickness / 2f, ConnectorDepth / 2f),
+            new Vector3(ConnectorLength + 2 * WallThickness, FloorThickness, ConnectorDepth + 2 * WallThickness),
+            mats.Roof);
+        // Left wing roof
+        MakeCube("Roof_LeftWing", root.transform,
+            new Vector3(leftWingX + WingWidth / 2f, totalHeight + FloorThickness / 2f, wingStartZ + WingLength / 2f),
+            new Vector3(WingWidth + 2 * WallThickness, FloorThickness, WingLength + 2 * WallThickness),
+            mats.Roof);
+        // Right wing roof
+        MakeCube("Roof_RightWing", root.transform,
+            new Vector3(rightWingX + WingWidth / 2f, totalHeight + FloorThickness / 2f, wingStartZ + WingLength / 2f),
+            new Vector3(WingWidth + 2 * WallThickness, FloorThickness, WingLength + 2 * WallThickness),
             mats.Roof);
 
-        // Stairs: narrow (1.2m) centered in corridor, ascending west-to-east.
-        // After +90° Y rotation: local +Z (step ascent direction) maps to world +X,
-        // local +X (width direction) maps to world -Z.
-        // Pivot.z = corridor center + StairWidth/2 so step centers end up at corridor center.
+        // =========== STAIRS — at east end of connector corridor ===========
         var stairs = (GameObject)PrefabUtility.InstantiatePrefab(stairsPrefab, root.transform);
         stairs.name = "Stairs";
         stairs.transform.localRotation = Quaternion.Euler(0, 90f, 0);
-        stairs.transform.localPosition = new Vector3(stairBottomX, 0, corridorCenterZ + StairWidth / 2f);
+        stairs.transform.localPosition = new Vector3(stairBottomX, 0, connectorCorridorCenterZ + StairWidth / 2f);
 
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, BuildingPrefabPath);
         Object.DestroyImmediate(root);
         return prefab;
+    }
+
+    /// <summary>
+    /// Build a south-extending wing: corridor running N-S in the middle, rooms east and west.
+    /// </summary>
+    private static void BuildWing(Transform floorParent, string wingName, float wingX, float wingStartZ, int floorIndex,
+        GameObject roomPrefab, Mats mats)
+    {
+        float corridorCenterX = wingX + RoomDepth + CorridorWidth / 2f;
+        float corridorWestX = wingX + RoomDepth;
+        float corridorEastX = corridorWestX + CorridorWidth;
+
+        // Wing corridor floor (solid, no stairs here)
+        MakeCube($"{wingName}_CorridorFloor", floorParent,
+            new Vector3(corridorCenterX, -FloorThickness / 2f, wingStartZ + WingLength / 2f),
+            new Vector3(CorridorWidth, FloorThickness, WingLength),
+            mats.Floor);
+
+        // Wing corridor ceiling
+        MakeCube($"{wingName}_CorridorCeiling", floorParent,
+            new Vector3(corridorCenterX, RoomHeight + FloorThickness / 2f, wingStartZ + WingLength / 2f),
+            new Vector3(CorridorWidth, FloorThickness, WingLength),
+            mats.Ceiling);
+
+        // West-side rooms (rotated 90° CW so their door faces +X = into corridor)
+        for (int r = 0; r < WingRoomsPerSide; r++)
+        {
+            var room = (GameObject)PrefabUtility.InstantiatePrefab(roomPrefab, floorParent);
+            room.name = $"Room_F{floorIndex}_{wingName}_W{r}";
+            // After +90° Y rotation, the room corner (0,0,0) stays, room occupies x=[0, RoomDepth], z=[-RoomWidth, 0].
+            // Translate so room sits at x=[wingX, wingX + RoomDepth], z=[wingStartZ + r*RoomWidth, wingStartZ + (r+1)*RoomWidth].
+            room.transform.localPosition = new Vector3(wingX, 0, wingStartZ + (r + 1) * RoomWidth);
+            room.transform.localRotation = Quaternion.Euler(0, 90f, 0);
+        }
+
+        // East-side rooms (rotated -90° CCW so their door faces -X = into corridor)
+        for (int r = 0; r < WingRoomsPerSide; r++)
+        {
+            var room = (GameObject)PrefabUtility.InstantiatePrefab(roomPrefab, floorParent);
+            room.name = $"Room_F{floorIndex}_{wingName}_E{r}";
+            // After -90° Y rotation, original (0,0,0) → (0,0,0), (8,0,0) → (0,0,8), (0,0,7) → (-7,0,0).
+            // Place at (wingX + WingWidth, 0, wingStartZ + r*RoomWidth) to get x=[wingX+10, wingX+17], z=[wingStartZ + r*8, wingStartZ + (r+1)*8].
+            room.transform.localPosition = new Vector3(wingX + WingWidth, 0, wingStartZ + r * RoomWidth);
+            room.transform.localRotation = Quaternion.Euler(0, -90f, 0);
+        }
+
+        // Wing south end-cap wall (closes off the south end of wing corridor)
+        MakeCube($"{wingName}_CorridorWall_South", floorParent,
+            new Vector3(corridorCenterX, RoomHeight / 2f, wingStartZ + WingLength + WallThickness / 2f),
+            new Vector3(CorridorWidth, RoomHeight, WallThickness),
+            mats.WallRed);
+    }
+
+    /// <summary>
+    /// The connector's south wall — solid except for two openings where the wing corridors connect.
+    /// </summary>
+    private static void BuildConnectorSouthWall(Transform parent, Mats mats,
+        float leftWingCorridorCenterX, float rightWingCorridorCenterX)
+    {
+        float wallZ = ConnectorDepth + WallThickness / 2f;  // just south of corridor
+
+        float leftPassageMin = leftWingCorridorCenterX - CorridorWidth / 2f;
+        float leftPassageMax = leftWingCorridorCenterX + CorridorWidth / 2f;
+        float rightPassageMin = rightWingCorridorCenterX - CorridorWidth / 2f;
+        float rightPassageMax = rightWingCorridorCenterX + CorridorWidth / 2f;
+
+        // Segment 1: west of left passage
+        if (leftPassageMin > 0f)
+        {
+            MakeCube("ConnectorWall_South_1", parent,
+                new Vector3(leftPassageMin / 2f, RoomHeight / 2f, wallZ),
+                new Vector3(leftPassageMin, RoomHeight, WallThickness),
+                mats.WallRed);
+        }
+        // Segment 2: between the two passages
+        float midSegStart = leftPassageMax;
+        float midSegEnd = rightPassageMin;
+        if (midSegEnd > midSegStart)
+        {
+            float midLen = midSegEnd - midSegStart;
+            MakeCube("ConnectorWall_South_2", parent,
+                new Vector3(midSegStart + midLen / 2f, RoomHeight / 2f, wallZ),
+                new Vector3(midLen, RoomHeight, WallThickness),
+                mats.WallRed);
+        }
+        // Segment 3: east of right passage
+        if (rightPassageMax < ConnectorLength)
+        {
+            float eastLen = ConnectorLength - rightPassageMax;
+            MakeCube("ConnectorWall_South_3", parent,
+                new Vector3(rightPassageMax + eastLen / 2f, RoomHeight / 2f, wallZ),
+                new Vector3(eastLen, RoomHeight, WallThickness),
+                mats.WallRed);
+        }
     }
 
     /// <summary>
