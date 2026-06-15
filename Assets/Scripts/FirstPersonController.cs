@@ -50,8 +50,18 @@ public class FirstPersonController : MonoBehaviour
             standingCameraLocalPosition = cameraPivot.localPosition;
         }
 
+    }
+
+    private void OnEnable()
+    {
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+    }
+
+    private void OnDisable()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
     private void Update()
@@ -64,6 +74,10 @@ public class FirstPersonController : MonoBehaviour
     private void HandleLook()
     {
         if (cameraPivot == null)
+        {
+            return;
+        }
+        if (Cursor.lockState != CursorLockMode.Locked)
         {
             return;
         }
