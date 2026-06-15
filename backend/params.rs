@@ -1,0 +1,1 @@
+After the first audio the dialgoue choice should be the follwoing: успоредно на абцисата; успоредно на ординатата; по диагонала

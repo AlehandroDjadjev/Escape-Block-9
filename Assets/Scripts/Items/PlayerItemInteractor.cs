@@ -8,7 +8,6 @@ public class PlayerItemInteractor : MonoBehaviour
     [SerializeField] private Camera playerCamera;
     [SerializeField] private PickupPromptUI promptUi;
     [SerializeField] private DialogueChoiceUI dialogueChoiceUi;
-    [SerializeField] private SubtitleUI subtitleUi;
 
     private SingleItemInventory inventory;
     private ItemPickup currentTarget;
@@ -38,10 +37,6 @@ public class PlayerItemInteractor : MonoBehaviour
             dialogueChoiceUi = FindAnyObjectByType<DialogueChoiceUI>();
         }
 
-        if (subtitleUi == null)
-        {
-            subtitleUi = FindAnyObjectByType<SubtitleUI>();
-        }
     }
 
     private void Update()
@@ -138,7 +133,6 @@ public class PlayerItemInteractor : MonoBehaviour
     private bool ShouldYieldCursorToDialogue()
     {
         bool choiceVisible = dialogueChoiceUi != null && dialogueChoiceUi.IsVisible;
-        bool subtitlePlaying = subtitleUi != null && subtitleUi.IsPlaying;
-        return choiceVisible || subtitlePlaying;
+        return choiceVisible;
     }
 }

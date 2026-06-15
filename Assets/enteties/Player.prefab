@@ -15,6 +15,8 @@ GameObject:
   - component: {fileID: 3177371071081934022}
   - component: {fileID: 6577563883179795877}
   - component: {fileID: 8537081050511382830}
+  - component: {fileID: 5775565512240574871}
+  - component: {fileID: 56653267782482989}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -152,6 +154,46 @@ MonoBehaviour:
   interactRadius: 2.4
   playerCamera: {fileID: 0}
   promptUi: {fileID: 0}
+  dialogueChoiceUi: {fileID: 0}
+--- !u!114 &5775565512240574871
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1694609905212923293}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fce91547ac6e9cf40820fdb9a2fe3cfe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerEntityInteractor
+  playerCamera: {fileID: 0}
+  talkPromptUi: {fileID: 0}
+  dialogueChoiceUi: {fileID: 0}
+  verboseLogging: 0
+  maxClipLoadSeconds: 12
+  enableOcclusion: 1
+  occlusionMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  unobstructedCutoff: 22000
+  obstructedCutoff: 1400
+--- !u!114 &56653267782482989
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1694609905212923293}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2aae79f02650df14eac0fe01569bc922, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameFlowUIController
+  gameTitle: Escape Block 9
+  firstPersonController: {fileID: 0}
+  itemInteractor: {fileID: 0}
+  entityInteractor: {fileID: 0}
 --- !u!1 &8123899800901993388
 GameObject:
   m_ObjectHideFlags: 0
@@ -164,6 +206,7 @@ GameObject:
   - component: {fileID: 5403006737568682192}
   - component: {fileID: 152324689146104232}
   - component: {fileID: 8883448794538398325}
+  - component: {fileID: 3078848688064679000}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -289,3 +332,35 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!114 &3078848688064679000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8123899800901993388}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 72ece51f2901e7445ab60da3685d6b5f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Cinemachine::Unity.Cinemachine.CinemachineBrain
+  ShowDebugText: 0
+  ShowCameraFrustum: 1
+  IgnoreTimeScale: 0
+  WorldUpOverride: {fileID: 0}
+  ChannelMask: -1
+  UpdateMethod: 2
+  BlendUpdateMethod: 1
+  LensModeOverride:
+    Enabled: 0
+    DefaultMode: 2
+  DefaultBlend:
+    Style: 1
+    Time: 2
+    CustomCurve:
+      serializedVersion: 2
+      m_Curve: []
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  CustomBlends: {fileID: 0}
