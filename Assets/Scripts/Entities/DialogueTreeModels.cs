@@ -25,6 +25,66 @@ public class DialogueTreeData
     public DialogueNodeData[] nodes;
 }
 
+[Serializable]
+public class AudioDialogueVariantData
+{
+    public string clip;
+    public float weight = 1f;
+    public string transcript;
+    public string[] requiredFlags;
+    public string[] excludedFlags;
+    public string resolvedClipUrl;
+}
+
+[Serializable]
+public class AudioDialogueLineData
+{
+    public string lineId;
+    public AudioDialogueVariantData[] variants;
+}
+
+[Serializable]
+public class AudioDialogueChoiceData
+{
+    public string id;
+    public string text;
+    public string nextNodeId;
+    public string[] setFlags;
+}
+
+[Serializable]
+public class AudioDialogueNodeData
+{
+    public string id;
+    public AudioDialogueLineData[] lines;
+    public string nextNodeId;
+    public AudioDialogueChoiceData[] choices;
+}
+
+[Serializable]
+public class AudioDialogueTreeData
+{
+    public string rootNodeId;
+    public AudioDialogueNodeData[] nodes;
+}
+
+[Serializable]
+public class BackendDialogueCharacterData
+{
+    public int id;
+    public string name;
+    public string slug;
+    public string audioBaseUrl;
+}
+
+[Serializable]
+public class BackendDialogueResponseData
+{
+    public BackendDialogueCharacterData character;
+    public AudioDialogueTreeData tree;
+    public int schemaVersion;
+}
+
 public static class DialogueInterpreter
 {
     public static Dictionary<string, DialogueNodeData> BuildLookup(DialogueTreeData tree)
@@ -137,5 +197,97 @@ public static class DialogueInterpreter
         }
 
         return result;
+    }
+}
+
+public static class AudioDialogueInterpreter
+{
+    public static Dictionary<string, AudioDialogueNodeData> BuildLookup(AudioDialogueTreeData tree)
+    {
+        Dictionary<string, AudioDialogueNodeData> lookup = new Dictionary<string, AudioDialogueNodeData>();
+        if (tree == null || tree.nodes == null)
+        {
+            return lookup;
+        }
+
+        foreach (AudioDialogueNodeData node in tree.nodes)
+        {
+            if (node != null && !string.IsNullOrWhiteSpace(node.id))
+            {
+                lookup[node.id] = node;
+            }
+        }
+
+        return lookup;
+    }
+
+    public static AudioDialogueNodeData GetStartNode(
+        AudioDialogueTreeData tree,
+        Dictionary<string, AudioDialogueNodeData> lookup)
+    {
+        if (tree == null || tree.nodes == null || tree.nodes.Length == 0)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(tree.rootNodeId) &&
+            lookup.TryGetValue(tree.rootNodeId, out AudioDialogueNodeData root))
+        {
+            return root;
+        }
+
+        return tree.nodes[0];
+    }
+
+    public static string ResolveNextNodeId(AudioDialogueNodeData node, int chosenIndex)
+    {
+        if (node == null)
+        {
+            return null;
+        }
+
+        if (node.choices != null && node.choices.Length > 0)
+        {
+            int index = Mathf.Clamp(chosenIndex, 0, node.choices.Length - 1);
+            AudioDialogueChoiceData choice = node.choices[index];
+            return choice != null ? choice.nextNodeId : null;
+        }
+
+        return node.nextNodeId;
+    }
+
+    public static bool TryGetNode(
+        string nodeId,
+        Dictionary<string, AudioDialogueNodeData> lookup,
+        out AudioDialogueNodeData node)
+    {
+        node = null;
+        if (string.IsNullOrWhiteSpace(nodeId))
+        {
+            return false;
+        }
+
+        return lookup.TryGetValue(nodeId, out node);
+    }
+
+    public static DialogueChoiceData[] BuildUiChoices(AudioDialogueNodeData node)
+    {
+        if (node == null || node.choices == null || node.choices.Length == 0)
+        {
+            return Array.Empty<DialogueChoiceData>();
+        }
+
+        DialogueChoiceData[] uiChoices = new DialogueChoiceData[node.choices.Length];
+        for (int i = 0; i < node.choices.Length; i++)
+        {
+            AudioDialogueChoiceData choice = node.choices[i];
+            uiChoices[i] = new DialogueChoiceData
+            {
+                text = choice != null ? choice.text : string.Empty,
+                nextNodeId = choice != null ? choice.nextNodeId : null
+            };
+        }
+
+        return uiChoices;
     }
 }

@@ -1,11 +1,21 @@
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.Splines;
+using System;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(CinemachineSplineCart))]
 public class EntityCinemachineDollyFollower : MonoBehaviour
 {
+    public static event Action<EntityCinemachineDollyFollower> PlayerCaught;
+
+    private enum ThreatState
+    {
+        Calm = 0,
+        Suspicious = 1,
+        Aggro = 2
+    }
+
     [Header("Path")]
     [SerializeField] private SplineContainer patrolPath;
     [SerializeField] private string fallbackPathObjectName = "CinemachinePath";
@@ -22,12 +32,23 @@ public class EntityCinemachineDollyFollower : MonoBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private string suspicionParameter = "Suspicion";
     [SerializeField] private float fallbackSuspiciousThreshold = 0.01f;
+    [SerializeField] private float fallbackAggroThreshold = 2.5f;
     [SerializeField] private string[] suspiciousStateNames = { "Suspicious" };
     [SerializeField] private string[] aggroStateNames = { "Gnevna", "Aggro" };
     [SerializeField] private bool raiseSuspicionAtWaypoints = true;
     [SerializeField] private float waypointSuspicionValue = 1f;
     [SerializeField] private float waypointTriggerDistance = 0.5f;
     [SerializeField] private float waypointResetDistance = 1.25f;
+
+    [Header("Aggro Chase")]
+    [SerializeField] private bool chaseDuringAggro = true;
+    [SerializeField] private Transform chaseTarget;
+    [SerializeField] private string chaseTargetTag = "Player";
+    [SerializeField] private float chaseSpeed = 3.25f;
+    [SerializeField] private float chaseStopDistance = 1.15f;
+    [SerializeField] private bool faceChaseDirection = true;
+    [SerializeField] private bool instantChaseFacing = true;
+    [SerializeField] private float chaseRotationLerpSpeed = 16f;
 
     [Header("Facing")]
     [SerializeField] private bool rotateAlongMovement = true;
@@ -37,10 +58,21 @@ public class EntityCinemachineDollyFollower : MonoBehaviour
     [SerializeField, Range(0.001f, 0.1f)] private float tangentSampleStep = 0.01f;
     [SerializeField] private bool forceInstantFacing = true;
 
+    [Header("Suspicious Look")]
+    [SerializeField] private bool useScriptedSuspiciousLook = true;
+    [SerializeField] private float suspiciousLookAngle = 52f;
+    [SerializeField] private float suspiciousLookSpeed = 1.8f;
+
     private CinemachineSplineCart splineCart;
     private float direction = 1f;
     private int suspicionParamHash;
     private int lastTriggeredWaypoint = -1;
+    private ThreatState threatState = ThreatState.Calm;
+    private ThreatState previousThreatState = ThreatState.Calm;
+    private bool hasAggroChaseDirection;
+    private Vector3 lastAggroChaseDirection;
+    private Quaternion suspiciousBaseRotation;
+    private bool hasTriggeredCatch;
 
     private void Awake()
     {
@@ -50,6 +82,7 @@ public class EntityCinemachineDollyFollower : MonoBehaviour
     private void OnEnable()
     {
         EnsureSetup();
+        EnsureChaseTarget();
         if (setStartOnEnable && splineCart != null)
         {
             splineCart.SplinePosition = Mathf.Clamp01(startNormalizedPosition);
@@ -68,7 +101,20 @@ public class EntityCinemachineDollyFollower : MonoBehaviour
             return;
         }
 
-        if (stopWhenSuspicious && IsInSuspiciousOrAggroAnimationState())
+        EnsureChaseTarget();
+
+        ThreatState currentState = EvaluateThreatState();
+        HandleThreatStateTransitions(currentState);
+        threatState = currentState;
+        OnThreatStateUpdated();
+
+        if (currentState == ThreatState.Aggro && chaseDuringAggro)
+        {
+            RunAggroChase();
+            return;
+        }
+
+        if (stopWhenSuspicious && currentState == ThreatState.Suspicious)
         {
             return;
         }
@@ -112,13 +158,25 @@ public class EntityCinemachineDollyFollower : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (threatState == ThreatState.Aggro && chaseDuringAggro && faceChaseDirection)
+        {
+            ApplyAggroFacingInLateUpdate();
+            return;
+        }
+
+        if (threatState == ThreatState.Suspicious && useScriptedSuspiciousLook)
+        {
+            ApplySuspiciousFacingInLateUpdate();
+            return;
+        }
+
         if (!rotateAlongMovement || splineCart == null || patrolPath == null)
         {
             return;
         }
 
         // Let suspicious/aggro clips drive orientation when active.
-        if (IsInSuspiciousOrAggroAnimationState())
+        if (threatState != ThreatState.Calm)
         {
             return;
         }
@@ -179,6 +237,241 @@ public class EntityCinemachineDollyFollower : MonoBehaviour
         }
     }
 
+    private void EnsureChaseTarget()
+    {
+        if (chaseTarget != null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(chaseTargetTag))
+        {
+            GameObject taggedTarget = GameObject.FindGameObjectWithTag(chaseTargetTag);
+            if (taggedTarget != null)
+            {
+                chaseTarget = taggedTarget.transform;
+                return;
+            }
+        }
+
+        FirstPersonController playerController = FindAnyObjectByType<FirstPersonController>();
+        if (playerController != null)
+        {
+            chaseTarget = playerController.transform;
+        }
+    }
+
+    private ThreatState EvaluateThreatState()
+    {
+        if (animator == null)
+        {
+            return ThreatState.Calm;
+        }
+
+        AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(0);
+        if (MatchesAnyStateName(current, aggroStateNames))
+        {
+            return ThreatState.Aggro;
+        }
+
+        if (MatchesAnyStateName(current, suspiciousStateNames))
+        {
+            return ThreatState.Suspicious;
+        }
+
+        if (animator.IsInTransition(0))
+        {
+            AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(0);
+            if (MatchesAnyStateName(next, aggroStateNames))
+            {
+                return ThreatState.Aggro;
+            }
+
+            if (MatchesAnyStateName(next, suspiciousStateNames))
+            {
+                return ThreatState.Suspicious;
+            }
+        }
+
+        if (!HasSuspicionParameter())
+        {
+            return ThreatState.Calm;
+        }
+
+        float aggroThreshold = fallbackAggroThreshold;
+        float suspiciousThreshold = fallbackSuspiciousThreshold;
+        if (SuspicionSettings.Instance != null)
+        {
+            aggroThreshold = SuspicionSettings.Instance.AggroThreshold;
+            suspiciousThreshold = SuspicionSettings.Instance.SuspiciousThreshold;
+        }
+
+        float suspicion = animator.GetFloat(suspicionParamHash);
+        if (suspicion >= aggroThreshold)
+        {
+            return ThreatState.Aggro;
+        }
+
+        if (suspicion >= suspiciousThreshold)
+        {
+            return ThreatState.Suspicious;
+        }
+
+        return ThreatState.Calm;
+    }
+
+    private void HandleThreatStateTransitions(ThreatState currentState)
+    {
+        if (splineCart == null)
+        {
+            return;
+        }
+
+        if (threatState != ThreatState.Aggro && currentState == ThreatState.Aggro)
+        {
+            hasTriggeredCatch = false;
+            splineCart.enabled = false;
+            return;
+        }
+
+        if (threatState == ThreatState.Aggro && currentState != ThreatState.Aggro)
+        {
+            hasTriggeredCatch = false;
+            if (!splineCart.enabled)
+            {
+                splineCart.enabled = true;
+            }
+
+            if (patrolPath != null)
+            {
+                splineCart.SplinePosition = FindNearestSplinePosition(64);
+            }
+        }
+    }
+
+    private void OnThreatStateUpdated()
+    {
+        if (threatState != previousThreatState)
+        {
+            if (threatState == ThreatState.Suspicious)
+            {
+                suspiciousBaseRotation = transform.rotation;
+            }
+
+            previousThreatState = threatState;
+        }
+    }
+
+    private void RunAggroChase()
+    {
+        hasAggroChaseDirection = false;
+        if (chaseTarget == null)
+        {
+            return;
+        }
+
+        Vector3 toTarget = chaseTarget.position - transform.position;
+        toTarget.y = 0f;
+        float distance = toTarget.magnitude;
+        if (distance <= chaseStopDistance)
+        {
+            if (!hasTriggeredCatch)
+            {
+                hasTriggeredCatch = true;
+                PlayerCaught?.Invoke(this);
+            }
+
+            return;
+        }
+
+        Vector3 moveDirection = toTarget / Mathf.Max(distance, 0.0001f);
+        lastAggroChaseDirection = moveDirection;
+        hasAggroChaseDirection = true;
+        transform.position += moveDirection * chaseSpeed * Time.deltaTime;
+
+        if (faceChaseDirection)
+        {
+            Quaternion chaseRotation = Quaternion.LookRotation(moveDirection, Vector3.up) * Quaternion.Euler(modelForwardEulerOffset);
+            if (instantChaseFacing || chaseRotationLerpSpeed <= 0f)
+            {
+                transform.rotation = chaseRotation;
+            }
+            else
+            {
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    chaseRotation,
+                    Mathf.Clamp01(chaseRotationLerpSpeed * Time.deltaTime));
+            }
+        }
+    }
+
+    private void ApplyAggroFacingInLateUpdate()
+    {
+        Vector3 facingDirection = Vector3.zero;
+        if (chaseTarget != null)
+        {
+            facingDirection = chaseTarget.position - transform.position;
+            facingDirection.y = 0f;
+        }
+
+        if (facingDirection.sqrMagnitude < 0.000001f && hasAggroChaseDirection)
+        {
+            facingDirection = lastAggroChaseDirection;
+            facingDirection.y = 0f;
+        }
+
+        if (facingDirection.sqrMagnitude < 0.000001f)
+        {
+            return;
+        }
+
+        Quaternion chaseRotation = Quaternion.LookRotation(facingDirection.normalized, Vector3.up) * Quaternion.Euler(modelForwardEulerOffset);
+        if (instantChaseFacing || chaseRotationLerpSpeed <= 0f)
+        {
+            transform.rotation = chaseRotation;
+        }
+        else
+        {
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation,
+                chaseRotation,
+                Mathf.Clamp01(chaseRotationLerpSpeed * Time.deltaTime));
+        }
+    }
+
+    private void ApplySuspiciousFacingInLateUpdate()
+    {
+        float yawOffset = Mathf.Sin(Time.time * suspiciousLookSpeed) * suspiciousLookAngle;
+        Quaternion lookRotation = suspiciousBaseRotation * Quaternion.Euler(0f, yawOffset, 0f);
+        transform.rotation = lookRotation;
+    }
+
+    private float FindNearestSplinePosition(int samples)
+    {
+        if (patrolPath == null || samples <= 1)
+        {
+            return splineCart != null ? splineCart.SplinePosition : 0f;
+        }
+
+        float bestT = 0f;
+        float bestDistSq = float.MaxValue;
+        Vector3 currentPos = transform.position;
+        for (int i = 0; i <= samples; i++)
+        {
+            float t = i / (float)samples;
+            Vector3 samplePos = patrolPath.EvaluatePosition(t);
+            float d = (samplePos - currentPos).sqrMagnitude;
+            if (d < bestDistSq)
+            {
+                bestDistSq = d;
+                bestT = t;
+            }
+        }
+
+        return bestT;
+    }
+
     private bool IsAtOrAboveSuspiciousThreshold()
     {
         if (animator == null || !HasSuspicionParameter())
@@ -193,29 +486,6 @@ public class EntityCinemachineDollyFollower : MonoBehaviour
         }
 
         return animator.GetFloat(suspicionParamHash) >= threshold;
-    }
-
-    private bool IsInSuspiciousOrAggroAnimationState()
-    {
-        if (animator == null || !animator.isActiveAndEnabled)
-        {
-            return false;
-        }
-
-        AnimatorStateInfo current = animator.GetCurrentAnimatorStateInfo(0);
-        if (MatchesAnyStateName(current, aggroStateNames) || MatchesAnyStateName(current, suspiciousStateNames))
-        {
-            return true;
-        }
-
-        AnimatorStateInfo next = animator.GetNextAnimatorStateInfo(0);
-        if (animator.IsInTransition(0) &&
-            (MatchesAnyStateName(next, aggroStateNames) || MatchesAnyStateName(next, suspiciousStateNames)))
-        {
-            return true;
-        }
-
-        return IsAtOrAboveSuspiciousThreshold();
     }
 
     private static bool MatchesAnyStateName(AnimatorStateInfo info, string[] names)

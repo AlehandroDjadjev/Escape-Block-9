@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Characters{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3">Characters</h1>
+  <a href="/characters/new/" class="btn btn-primary">New Character</a>
+</div>
+
+<div class="card bg-black border-secondary">
+  <div class="table-responsive">
+    <table class="table table-dark table-striped mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Slug</th>
+          <th>Audio Base URL</th>
+          <th>Updated</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for character in characters %}
+        <tr>
+          <td>{{ character.name }}</td>
+          <td><code>{{ character.slug }}</code></td>
+          <td class="text-break">{{ character.audio_base_url|default:"-" }}</td>
+          <td>{{ character.updated_at|date:"Y-m-d H:i" }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-light" href="/characters/{{ character.slug }}/edit/">Edit</a>
+            <a class="btn btn-sm btn-outline-info" href="/characters/{{ character.slug }}/tree/">Tree</a>
+            <a class="btn btn-sm btn-outline-success" href="/api/dialogue/{{ character.slug }}/" target="_blank">API</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="5" class="text-center text-secondary py-4">No characters yet.</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Dialogue Tree{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3">Dialogue Tree: {{ character.name }}</h1>
+  <a href="/characters/" class="btn btn-outline-light">Back</a>
+</div>
+
+<div class="alert alert-secondary">
+  API endpoint for Unity: <code>/api/dialogue/{{ character.slug }}/</code>
+</div>
+
+<div class="card bg-black border-secondary p-3 mb-3">
+  <h2 class="h5">1) Upload WAV Files</h2>
+  <form method="post" enctype="multipart/form-data" action="{% url 'dialogue:upload-audio' character.slug %}">
+    {% csrf_token %}
+    {% for field in asset_form %}
+      <div class="mb-3">
+        <label class="form-label">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<div class="form-text text-secondary">{{ field.help_text }}</div>{% endif %}
+        {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">Upload Audio</button>
+  </form>
+
+  <hr class="border-secondary my-4">
+  <h3 class="h6">Uploaded files</h3>
+  {% if audio_assets %}
+    <ul class="list-group list-group-flush">
+      {% for asset in audio_assets %}
+        <li class="list-group-item bg-black text-light border-secondary">
+          <div><code>{{ asset.clip_file.name }}</code></div>
+          <div class="text-secondary small">{{ asset.play_description }}</div>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-secondary mb-0">No audio files uploaded yet.</p>
+  {% endif %}
+</div>
+
+<div class="card bg-black border-secondary p-3 mb-3">
+  <h2 class="h5">2) Generate JSON with GPT-5 Mini</h2>
+  <form method="post" action="{% url 'dialogue:generate-tree' character.slug %}">
+    {% csrf_token %}
+    {% for field in generate_form %}
+      <div class="mb-3">
+        <label class="form-label">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<div class="form-text text-secondary">{{ field.help_text }}</div>{% endif %}
+        {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-warning">Generate Draft</button>
+  </form>
+</div>
+
+{% if latest_draft %}
+<div class="card bg-black border-secondary p-3 mb-3">
+  <h2 class="h5">3) Review + Approve Draft #{{ latest_draft.id }}</h2>
+  <textarea class="form-control font-monospace" rows="18" readonly>{{ latest_draft_pretty }}</textarea>
+  <div class="mt-3 d-flex gap-2">
+    <form method="post" action="{% url 'dialogue:approve-draft' character.slug latest_draft.id %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-success">Approve And Save</button>
+    </form>
+    {% if latest_draft.approved %}
+      <span class="badge text-bg-success align-self-center">Already approved</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<form method="post" class="card bg-black border-secondary p-3">
+  <h2 class="h5">Manual JSON Edit (optional)</h2>
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="mb-3">
+      <label class="form-label">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<div class="form-text text-secondary">{{ field.help_text }}</div>{% endif %}
+      {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+    </div>
+  {% endfor %}
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">Save Tree</button>
+    <a href="/api/dialogue/{{ character.slug }}/" target="_blank" class="btn btn-outline-success">Preview API</a>
+  </div>
+</form>
+{% endblock %}

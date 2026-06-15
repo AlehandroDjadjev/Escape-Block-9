@@ -47,6 +47,10 @@ public class EntityAlertIndicator : MonoBehaviour
     [SerializeField] private bool alwaysShowVisionRays = true;
     [SerializeField] private bool updateVisionRaysInEditMode = true;
     [SerializeField] private Transform visionOrigin;
+    [SerializeField] private bool alignVisionToHead = true;
+    [SerializeField] private float visionYawOffset = 0f;
+    [SerializeField] private bool flattenVisionToHorizontal = true;
+    [SerializeField] private Vector3 visionOriginOffset = new Vector3(0f, 0.05f, 0f);
     [SerializeField] private float visionDistance = 9f;
     [SerializeField, Range(10f, 180f)] private float visionAngle = 70f;
     [SerializeField, Range(3, 40)] private int visionRayCount = 11;
@@ -730,14 +734,31 @@ public class EntityAlertIndicator : MonoBehaviour
 
         }
 
-        Transform originTransform = visionOrigin != null ? visionOrigin : transform;
-        Vector3 origin = originTransform.position;
-        Vector3 flatForward = originTransform.forward;
-        flatForward.y = 0f;
+        Transform defaultOrigin = visionOrigin != null ? visionOrigin : transform;
+        Transform originTransform = alignVisionToHead && headPoint != null ? headPoint : defaultOrigin;
+        Vector3 origin = originTransform.position + visionOriginOffset;
+        Vector3 forwardSource = alignVisionToHead && headPoint != null
+            ? headPoint.forward
+            : originTransform.forward;
+
+        if (Mathf.Abs(visionYawOffset) > 0.001f)
+        {
+            forwardSource = Quaternion.AngleAxis(visionYawOffset, Vector3.up) * forwardSource;
+        }
+
+        Vector3 flatForward = forwardSource;
+        if (flattenVisionToHorizontal)
+        {
+            flatForward.y = 0f;
+        }
+
         if (flatForward.sqrMagnitude < 0.0001f)
         {
-            flatForward = transform.forward;
-            flatForward.y = 0f;
+            flatForward = alignVisionToHead && headPoint != null ? headPoint.forward : transform.forward;
+            if (flattenVisionToHorizontal)
+            {
+                flatForward.y = 0f;
+            }
         }
 
         flatForward.Normalize();

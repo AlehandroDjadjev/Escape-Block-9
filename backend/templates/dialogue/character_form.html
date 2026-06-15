@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Character{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Character</h1>
+<form method="post" class="card bg-black border-secondary p-3">
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="mb-3">
+      <label class="form-label">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<div class="form-text text-secondary">{{ field.help_text }}</div>{% endif %}
+      {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+    </div>
+  {% endfor %}
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <a href="/characters/" class="btn btn-outline-light">Back</a>
+  </div>
+</form>
+{% endblock %}
