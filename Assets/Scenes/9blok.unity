@@ -349,7 +349,7 @@ MonoBehaviour:
   fallbackSeed: 24680
   currentSeed: 24680
   useRandomSeedOnStart: 0
-  generateOnStart: 1
+  generateOnStart: 0
   clearPreviousGeneration: 1
   generatedRootName: GeneratedFacilityRuntime
   autoTagPlayerAsPlayer: 1

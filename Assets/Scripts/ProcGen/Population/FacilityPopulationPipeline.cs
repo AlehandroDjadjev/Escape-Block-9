@@ -68,6 +68,14 @@ namespace EscapeBlock9.ProcGen.Population
         public float BlockerClearanceRadius = 1.05f;
         public float SpawnHeightOffset = 0.02f;
 
+        [Header("Generated Light Settings")]
+        [Min(0f)] public float MinLightIntensity = 0.55f;
+        [Min(0f)] public float MaxLightIntensity = 1.05f;
+        [Min(0.1f)] public float LightRange = 7f;
+        public Color LightColor = new Color(0.62f, 0.78f, 0.9f, 1f);
+        public LightShadows LightShadows = LightShadows.None;
+        public bool EnableLightFlicker = true;
+
         [Header("Debug")]
         public bool EnableVerbosePopulationLogs = true;
     }
@@ -675,11 +683,16 @@ namespace EscapeBlock9.ProcGen.Population
                 }
 
                 light.type = LightType.Point;
-                light.intensity = Mathf.Lerp(0.55f, 1.05f, marker.Danger);
-                light.range = 7f;
-                light.color = new Color(0.62f, 0.78f, 0.9f, 1f);
-                light.shadows = LightShadows.None;
-                TryAddFlicker(lightRoot);
+                float minIntensity = Mathf.Max(0f, settings.MinLightIntensity);
+                float maxIntensity = Mathf.Max(minIntensity, settings.MaxLightIntensity);
+                light.intensity = Mathf.Lerp(minIntensity, maxIntensity, marker.Danger);
+                light.range = Mathf.Max(0.1f, settings.LightRange);
+                light.color = settings.LightColor;
+                light.shadows = settings.LightShadows;
+                if (settings.EnableLightFlicker)
+                {
+                    TryAddFlicker(lightRoot);
+                }
 
                 SetUsed(markers, i, "light", lightRoot.name);
                 spawns.Add(SpawnRecord("light", markers[i], "light", lightRoot.name));

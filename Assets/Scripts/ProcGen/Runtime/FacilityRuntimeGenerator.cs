@@ -18,6 +18,15 @@ using UnityEditor;
 
 namespace EscapeBlock9.ProcGen.Runtime
 {
+    [Serializable]
+    public sealed class FacilityRuntimeLightingSettings
+    {
+        public Color AmbientColor = new Color(0.015f, 0.018f, 0.022f, 1f);
+        [Range(0f, 2f)] public float AmbientIntensity = 0.06f;
+        [Range(0f, 2f)] public float ReflectionIntensity = 0.05f;
+        [Range(0f, 2f)] public float DirectionalLightIntensity = 0.03f;
+    }
+
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(-950)]
     public sealed class FacilityRuntimeGenerator : MonoBehaviour
@@ -46,6 +55,9 @@ namespace EscapeBlock9.ProcGen.Runtime
 
         [Header("Population")]
         [SerializeField] private FacilityPopulationSettings populationSettings = new FacilityPopulationSettings();
+
+        [Header("Lighting")]
+        [SerializeField] private FacilityRuntimeLightingSettings lightingSettings = new FacilityRuntimeLightingSettings();
 
         [Header("Navigation")]
         [SerializeField] private RuntimeNavMeshBuilder navMeshBuilder;
@@ -121,7 +133,7 @@ namespace EscapeBlock9.ProcGen.Runtime
                     ClearPreviousRoot();
                 }
 
-                ApplyDarkGeneratedLighting();
+                ApplyDarkGeneratedLighting(lightingSettings);
                 FacilityGraphPlanConfig graphPlan = BuildGraphPlan();
                 FacilityGraph graph = new FacilityGraphPlanner().Plan(graphPlan);
                 ResolvedFacilityLayout layout = new CustomFacilityLayoutSolver().Solve(graph, tileCatalog, graphPlan.MasterSeed);
@@ -303,12 +315,26 @@ namespace EscapeBlock9.ProcGen.Runtime
 
             bool foundMarker = false;
             Vector3 target = Vector3.zero;
+            Quaternion targetRotation = playerTransform.rotation;
+            if (TryResolveRandomRoomSpawn(layout, instanceTiles, out Vector3 roomTarget, out Quaternion roomRotation))
+            {
+                target = roomTarget;
+                targetRotation = roomRotation;
+                foundMarker = true;
+            }
+
             for (int i = 0; i < populationReport.MarkerUsage.Count; i++)
             {
+                if (foundMarker)
+                {
+                    break;
+                }
+
                 PopulationMarkerUsage marker = populationReport.MarkerUsage[i];
                 if (marker.Kind == SpawnMarkerKind.PlayerStart && marker.Status == PopulationMarkerStatus.Used)
                 {
                     target = marker.WorldPosition;
+                    targetRotation = Quaternion.identity;
                     foundMarker = true;
                     break;
                 }
@@ -327,6 +353,7 @@ namespace EscapeBlock9.ProcGen.Runtime
                         if (markers[i] != null && markers[i].Kind == SpawnMarkerKind.PlayerStart)
                         {
                             target = markers[i].transform.position;
+                            targetRotation = ResolveSpawnRotation(markers[i].transform.forward, startTile.transform.rotation);
                             foundMarker = true;
                             break;
                         }
@@ -346,12 +373,154 @@ namespace EscapeBlock9.ProcGen.Runtime
             }
 
             playerTransform.position = target + Vector3.up * 0.1f;
-            playerTransform.rotation = Quaternion.identity;
+            playerTransform.rotation = targetRotation;
 
             if (playerControllerBehaviour != null)
             {
                 playerControllerBehaviour.enabled = true;
             }
+        }
+
+        private static bool TryResolveRandomRoomSpawn(
+            ResolvedFacilityLayout layout,
+            IReadOnlyDictionary<int, Tile> instanceTiles,
+            out Vector3 target,
+            out Quaternion rotation)
+        {
+            target = Vector3.zero;
+            rotation = Quaternion.identity;
+            if (layout == null || instanceTiles == null)
+            {
+                return false;
+            }
+
+            var random = new NamedRandomStreams(layout.Seed).Stream("runtime/player-random-room-spawn");
+            var preferredCandidates = new List<PlayerSpawnCandidate>();
+            var fallbackCandidates = new List<PlayerSpawnCandidate>();
+            for (int i = 0; i < layout.Tiles.Count; i++)
+            {
+                PlacedTile placedTile = layout.Tiles[i];
+                if (!instanceTiles.TryGetValue(placedTile.NodeId, out Tile tile) || tile == null)
+                {
+                    continue;
+                }
+
+                TileCategory category = tile.Category;
+                if (category == TileCategory.Room || category == TileCategory.Special)
+                {
+                    AddSpawnCandidates(preferredCandidates, tile, placedTile);
+                }
+                else if (category != TileCategory.Corridor)
+                {
+                    AddSpawnCandidates(fallbackCandidates, tile, placedTile);
+                }
+            }
+
+            if (TryPickSpawnCandidate(preferredCandidates, random, out target, out rotation))
+            {
+                return true;
+            }
+
+            return TryPickSpawnCandidate(fallbackCandidates, random, out target, out rotation);
+        }
+
+        private static void AddSpawnCandidates(List<PlayerSpawnCandidate> candidates, Tile tile, PlacedTile placedTile)
+        {
+            if (candidates == null || tile == null || placedTile == null)
+            {
+                return;
+            }
+
+            SpawnMarker[] markers = tile.GetSpawnMarkers();
+            for (int i = 0; i < markers.Length; i++)
+            {
+                SpawnMarker marker = markers[i];
+                if (marker == null || marker.Kind != SpawnMarkerKind.PlayerStart)
+                {
+                    continue;
+                }
+
+                candidates.Add(new PlayerSpawnCandidate(
+                    marker.transform.position,
+                    ResolveSpawnRotation(marker.transform.forward, tile.transform.rotation),
+                    Mathf.Max(0.001f, marker.Weight * 2f)));
+            }
+
+            Bounds bounds = BuildNodeBounds(placedTile);
+            Vector3 center = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+            if (NavMesh.SamplePosition(center, out NavMeshHit hit, 2.5f, NavMesh.AllAreas))
+            {
+                center = hit.position;
+            }
+
+            candidates.Add(new PlayerSpawnCandidate(
+                center,
+                ResolveSpawnRotation(tile.transform.forward, tile.transform.rotation),
+                1f));
+        }
+
+        private static bool TryPickSpawnCandidate(
+            IReadOnlyList<PlayerSpawnCandidate> candidates,
+            SeededRandom random,
+            out Vector3 target,
+            out Quaternion rotation)
+        {
+            target = Vector3.zero;
+            rotation = Quaternion.identity;
+            if (candidates == null || candidates.Count == 0 || random == null)
+            {
+                return false;
+            }
+
+            float totalWeight = 0f;
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                totalWeight += Mathf.Max(0.001f, candidates[i].Weight);
+            }
+
+            float pick = random.Value01() * totalWeight;
+            float cumulative = 0f;
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                PlayerSpawnCandidate candidate = candidates[i];
+                cumulative += Mathf.Max(0.001f, candidate.Weight);
+                if (pick <= cumulative)
+                {
+                    target = candidate.Position;
+                    rotation = candidate.Rotation;
+                    return true;
+                }
+            }
+
+            PlayerSpawnCandidate fallback = candidates[candidates.Count - 1];
+            target = fallback.Position;
+            rotation = fallback.Rotation;
+            return true;
+        }
+
+        private static Quaternion ResolveSpawnRotation(Vector3 forward, Quaternion fallbackRotation)
+        {
+            Vector3 flattenedForward = Vector3.ProjectOnPlane(forward, Vector3.up);
+            if (flattenedForward.sqrMagnitude <= 0.0001f)
+            {
+                return fallbackRotation;
+            }
+
+            return Quaternion.LookRotation(flattenedForward.normalized, Vector3.up);
+        }
+
+        private readonly struct PlayerSpawnCandidate
+        {
+            public PlayerSpawnCandidate(Vector3 position, Quaternion rotation, float weight)
+            {
+                Position = position;
+                Rotation = rotation;
+                Weight = weight;
+            }
+
+            public Vector3 Position { get; }
+            public Quaternion Rotation { get; }
+            public float Weight { get; }
         }
 
         private static Transform ResolvePlayerTransform(out Behaviour controllerBehaviour)
@@ -578,12 +747,13 @@ namespace EscapeBlock9.ProcGen.Runtime
             return new Bounds(tile.Position, Vector3.one * 2f);
         }
 
-        private static void ApplyDarkGeneratedLighting()
+        private static void ApplyDarkGeneratedLighting(FacilityRuntimeLightingSettings settings)
         {
+            settings ??= new FacilityRuntimeLightingSettings();
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.015f, 0.018f, 0.022f, 1f);
-            RenderSettings.ambientIntensity = 0.06f;
-            RenderSettings.reflectionIntensity = 0.05f;
+            RenderSettings.ambientLight = settings.AmbientColor;
+            RenderSettings.ambientIntensity = Mathf.Clamp(settings.AmbientIntensity, 0f, 2f);
+            RenderSettings.reflectionIntensity = Mathf.Clamp(settings.ReflectionIntensity, 0f, 2f);
 
             Light[] lights = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include);
             for (int i = 0; i < lights.Length; i++)
@@ -591,7 +761,7 @@ namespace EscapeBlock9.ProcGen.Runtime
                 Light light = lights[i];
                 if (light != null && light.type == LightType.Directional)
                 {
-                    light.intensity = 0.03f;
+                    light.intensity = Mathf.Clamp(settings.DirectionalLightIntensity, 0f, 2f);
                 }
             }
         }
@@ -629,7 +799,6 @@ namespace EscapeBlock9.ProcGen.Runtime
                 populationSettings.LightFixturePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultLightFixturePrefabPath);
             }
 
-            populationSettings.LightChance = 0.5f;
         }
 #endif
 

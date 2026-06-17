@@ -1,9 +1,11 @@
 using System.Collections.Generic;
+using System.Reflection;
 using EscapeBlock9.ProcGen.Authoring;
 using EscapeBlock9.ProcGen.Data;
 using EscapeBlock9.ProcGen.Placement;
 using EscapeBlock9.ProcGen.Planning;
 using EscapeBlock9.ProcGen.Population;
+using EscapeBlock9.ProcGen.Runtime;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -143,6 +145,49 @@ namespace EscapeBlock9.ProcGen.Tests
                         Assert.AreNotEqual(PopulationMarkerStatus.SkippedRule, marker.Status);
                     }
                 }
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void RuntimePlayerSpawnChoosesDeterministicRoomTileInsteadOfCorridor()
+        {
+            TileCatalog catalog = LoadCatalog();
+            FacilityGraph graph = new FacilityGraphPlanner().Plan(BuildConfig(90441, includePortal: false));
+            ResolvedFacilityLayout layout = new CustomFacilityLayoutSolver().Solve(graph, catalog, 90441);
+            Assert.AreEqual(graph.Nodes.Count, layout.Tiles.Count, layout.Diagnostics.ToDebugString());
+
+            var root = new GameObject("RuntimePlayerSpawnTests_Root");
+            var tilesRoot = new GameObject("Tiles");
+            tilesRoot.transform.SetParent(root.transform, false);
+            var instanceTiles = new Dictionary<int, Tile>();
+
+            try
+            {
+                for (int i = 0; i < layout.Tiles.Count; i++)
+                {
+                    PlacedTile placed = layout.Tiles[i];
+                    GameObject instance = Object.Instantiate(placed.Definition.Prefab, tilesRoot.transform);
+                    instance.transform.SetPositionAndRotation(placed.Position, placed.Rotation);
+                    Tile tile = instance.GetComponent<Tile>();
+                    if (tile != null)
+                    {
+                        instanceTiles[placed.NodeId] = tile;
+                    }
+                }
+
+                Assert.IsTrue(TryInvokeRoomSpawnResolver(layout, instanceTiles, out Vector3 firstPosition, out Quaternion firstRotation));
+                Assert.IsTrue(TryInvokeRoomSpawnResolver(layout, instanceTiles, out Vector3 secondPosition, out Quaternion secondRotation));
+                Assert.Less(Vector3.Distance(firstPosition, secondPosition), 0.001f, "Room spawn should be deterministic for a fixed seed.");
+                Assert.Less(Quaternion.Angle(firstRotation, secondRotation), 0.001f, "Room spawn rotation should be deterministic for a fixed seed.");
+
+                TileCategory chosenCategory = ResolveContainingTileCategory(layout, firstPosition);
+                Assert.IsTrue(
+                    chosenCategory == TileCategory.Room || chosenCategory == TileCategory.Special,
+                    $"Expected room-based spawn, but selected '{chosenCategory}' at {firstPosition}.");
             }
             finally
             {
@@ -297,6 +342,64 @@ namespace EscapeBlock9.ProcGen.Tests
             }
 
             return count;
+        }
+
+        private static bool TryInvokeRoomSpawnResolver(
+            ResolvedFacilityLayout layout,
+            IReadOnlyDictionary<int, Tile> instanceTiles,
+            out Vector3 position,
+            out Quaternion rotation)
+        {
+            MethodInfo method = typeof(FacilityRuntimeGenerator).GetMethod("TryResolveRandomRoomSpawn", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(method, "Expected private room spawn resolver to exist.");
+
+            object[] args = { layout, instanceTiles, Vector3.zero, Quaternion.identity };
+            bool success = (bool)method.Invoke(null, args);
+            position = (Vector3)args[2];
+            rotation = (Quaternion)args[3];
+            return success;
+        }
+
+        private static TileCategory ResolveContainingTileCategory(ResolvedFacilityLayout layout, Vector3 position)
+        {
+            TileCategory closestCategory = TileCategory.Corridor;
+            float closestDistance = float.MaxValue;
+            for (int i = 0; i < layout.Tiles.Count; i++)
+            {
+                PlacedTile tile = layout.Tiles[i];
+                Bounds bounds = BuildTileBounds(tile);
+                Bounds expandedBounds = bounds;
+                expandedBounds.Expand(new Vector3(0.15f, 0.5f, 0.15f));
+                if (expandedBounds.Contains(position))
+                {
+                    return tile.Definition.Category;
+                }
+
+                float distance = Vector3.Distance(bounds.ClosestPoint(position), position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestCategory = tile.Definition.Category;
+                }
+            }
+
+            return closestCategory;
+        }
+
+        private static Bounds BuildTileBounds(PlacedTile tile)
+        {
+            if (tile != null && tile.OccupancyBoxes.Count > 0)
+            {
+                Bounds bounds = tile.OccupancyBoxes[0].Bounds;
+                for (int i = 1; i < tile.OccupancyBoxes.Count; i++)
+                {
+                    bounds.Encapsulate(tile.OccupancyBoxes[i].Bounds);
+                }
+
+                return bounds;
+            }
+
+            return new Bounds(tile != null ? tile.Position : Vector3.zero, Vector3.one * 2f);
         }
     }
 }
