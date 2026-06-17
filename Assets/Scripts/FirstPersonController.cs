@@ -29,15 +29,17 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private bool enableStartingFlashlight = true;
     [SerializeField] private Vector3 flashlightLocalPosition = new Vector3(0.16f, -0.08f, 0.28f);
     [SerializeField] private Vector3 flashlightLocalEulerAngles = Vector3.zero;
+    [SerializeField] private Vector3 flashlightLocalScale = Vector3.one;
     [SerializeField] private Color flashlightColor = new Color(1f, 0.96f, 0.88f, 1f);
-    [SerializeField] private float flashlightIntensity = 1.35f;
-    [SerializeField] private float flashlightRange = 18f;
-    [SerializeField] private float flashlightSpotAngle = 72f;
-    [SerializeField] private float flashlightInnerSpotAngle = 44f;
+    [SerializeField] private float flashlightIntensity = 0.675f;
+    [SerializeField] private float flashlightRange = 9f;
+    [SerializeField] private float flashlightSpotAngle = 52f;
+    [SerializeField] private float flashlightInnerSpotAngle = 28f;
     [SerializeField] private LightShadows flashlightShadows = LightShadows.None;
+    [SerializeField] private float flashlightBatteryLifeSeconds = 180f;
 
     private CharacterController characterController;
-    private Light flashlight;
+    private SingleItemInventory inventory;
     private float currentSprintBonus;
     private float verticalVelocity;
     private float pitch;
@@ -46,9 +48,13 @@ public class FirstPersonController : MonoBehaviour
     private Vector3 standingCenter;
     private Vector3 standingCameraLocalPosition;
 
+    public Vector3 CurrentVelocity => characterController != null ? characterController.velocity : Vector3.zero;
+    public Transform CameraPivot => cameraPivot;
+
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+        inventory = GetComponent<SingleItemInventory>();
         standingHeight = characterController.height;
         standingCenter = characterController.center;
 
@@ -62,7 +68,8 @@ public class FirstPersonController : MonoBehaviour
             standingCameraLocalPosition = cameraPivot.localPosition;
         }
 
-        EnsureStartingFlashlight();
+        EnsureStartingFlashlightItem();
+        EnsureBatteryHud();
     }
 
     private void OnEnable()
@@ -218,36 +225,72 @@ public class FirstPersonController : MonoBehaviour
         return Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
     }
 
-    private void EnsureStartingFlashlight()
+    private void EnsureStartingFlashlightItem()
     {
-        if (!enableStartingFlashlight || cameraPivot == null)
+        if (!enableStartingFlashlight || cameraPivot == null || inventory == null || inventory.HasItem)
         {
             return;
         }
 
-        Transform flashlightTransform = cameraPivot.Find("PlayerFlashlight");
-        if (flashlightTransform == null)
+        GameObject flashlightObject = new GameObject("PlayerFlashlightItem");
+        flashlightObject.transform.SetParent(transform, false);
+        BuildFlashlightVisual(flashlightObject.transform);
+
+        Rigidbody rb = flashlightObject.AddComponent<Rigidbody>();
+        rb.useGravity = true;
+        rb.isKinematic = false;
+        rb.mass = 0.35f;
+
+        ItemPickup pickup = flashlightObject.AddComponent<ItemPickup>();
+        pickup.ConfigureIdentity("flashlight_item", "Flashlight");
+        pickup.ConfigurePrompt("E", "Pick up");
+        pickup.ConfigureHeldPose(flashlightLocalPosition, flashlightLocalEulerAngles, flashlightLocalScale);
+
+        FlashlightItem flashlightItem = flashlightObject.AddComponent<FlashlightItem>();
+        flashlightItem.ConfigureLight(
+            flashlightBatteryLifeSeconds,
+            flashlightColor,
+            flashlightIntensity,
+            flashlightRange,
+            flashlightSpotAngle,
+            flashlightInnerSpotAngle,
+            flashlightShadows);
+
+        inventory.TryPickup(pickup);
+    }
+
+    private void EnsureBatteryHud()
+    {
+        if (GetComponent<FlashlightBatteryHud>() == null)
         {
-            GameObject flashlightObject = new GameObject("PlayerFlashlight");
-            flashlightTransform = flashlightObject.transform;
-            flashlightTransform.SetParent(cameraPivot, false);
+            gameObject.AddComponent<FlashlightBatteryHud>();
+        }
+    }
+
+    private static void BuildFlashlightVisual(Transform root)
+    {
+        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        body.name = "Body";
+        body.transform.SetParent(root, false);
+        body.transform.localPosition = new Vector3(0f, 0f, 0f);
+        body.transform.localEulerAngles = new Vector3(90f, 0f, 0f);
+        body.transform.localScale = new Vector3(0.12f, 0.22f, 0.12f);
+
+        GameObject head = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        head.name = "Head";
+        head.transform.SetParent(root, false);
+        head.transform.localPosition = new Vector3(0f, 0f, 0.22f);
+        head.transform.localEulerAngles = new Vector3(90f, 0f, 0f);
+        head.transform.localScale = new Vector3(0.16f, 0.06f, 0.16f);
+
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            renderers[i].material.color = i == 0
+                ? new Color(0.2f, 0.2f, 0.24f, 1f)
+                : new Color(0.58f, 0.58f, 0.62f, 1f);
         }
 
-        flashlightTransform.localPosition = flashlightLocalPosition;
-        flashlightTransform.localEulerAngles = flashlightLocalEulerAngles;
-
-        flashlight = flashlightTransform.GetComponent<Light>();
-        if (flashlight == null)
-        {
-            flashlight = flashlightTransform.gameObject.AddComponent<Light>();
-        }
-
-        flashlight.type = LightType.Spot;
-        flashlight.color = flashlightColor;
-        flashlight.intensity = Mathf.Max(0f, flashlightIntensity);
-        flashlight.range = Mathf.Max(0.1f, flashlightRange);
-        flashlight.spotAngle = Mathf.Clamp(flashlightSpotAngle, 1f, 179f);
-        flashlight.innerSpotAngle = Mathf.Clamp(flashlightInnerSpotAngle, 0f, flashlight.spotAngle);
-        flashlight.shadows = flashlightShadows;
+        root.localScale = Vector3.one;
     }
 }

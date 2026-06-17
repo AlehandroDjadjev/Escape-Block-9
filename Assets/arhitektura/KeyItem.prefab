@@ -270,8 +270,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eab8221ae15609d4abff3e1225047a28, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ItemPickup
-  itemId: key_basic
-  itemDisplayName: Brass Key
+  itemId: objective_exit_key
+  itemDisplayName: Exit Authorization Key
   pickupKeyLabel: E
   pickupPromptText: Pick up
   promptPoint: {fileID: 0}

@@ -886,8 +886,8 @@ GameObject:
   - component: {fileID: 4319157057054971489}
   - component: {fileID: 1913359629235948815}
   - component: {fileID: 4193903406400730324}
-  - component: {fileID: 8894753548532880059}
   - component: {fileID: 4216188214596980963}
+  - component: {fileID: 3126235874858130216}
   m_Layer: 0
   m_Name: Teacher_basheva
   m_TagString: Untagged
@@ -1328,24 +1328,6 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &8894753548532880059
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2424204305854836104}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DoppelgangerPower
-  cooldown: 20
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 25
-  spawnRange: 12
-  illusionLifetime: 8
 --- !u!114 &4216188214596980963
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1361,16 +1343,37 @@ MonoBehaviour:
   wanderRadius: 6
   wanderSpeed: 1.4
   chaseSpeed: 3.2
-  chaseRange: 18
+  investigateSpeed: 1.4
   arrivalDistance: 0.4
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &3126235874858130216
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2424204305854836104}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 315ef65667e68dd4d8861d77a672f211, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DoppelgangerPower
+  cooldown: 20
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 25
+  spawnRange: 12
+  illusionLifetime: 8
 --- !u!1 &2685549901556204322
 GameObject:
   m_ObjectHideFlags: 0

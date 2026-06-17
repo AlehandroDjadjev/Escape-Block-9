@@ -19,8 +19,8 @@ GameObject:
   - component: {fileID: 2242536040909499667}
   - component: {fileID: 81741732783049519}
   - component: {fileID: 2780506092362806587}
-  - component: {fileID: 1398235460656515185}
   - component: {fileID: 3027717834067307736}
+  - component: {fileID: 8771803881820280123}
   m_Layer: 0
   m_Name: Teacher_hristov
   m_TagString: Untagged
@@ -461,23 +461,6 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &1398235460656515185
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 736421451082808897}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::XRayVisionPower
-  cooldown: 0.25
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 25
-  sightRadius: 12
 --- !u!114 &3027717834067307736
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -493,16 +476,36 @@ MonoBehaviour:
   wanderRadius: 6
   wanderSpeed: 1.4
   chaseSpeed: 3.2
-  chaseRange: 18
+  investigateSpeed: 1.4
   arrivalDistance: 0.4
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &8771803881820280123
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 736421451082808897}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dbb7077ba1df3a24ca855b3c6c3f5764, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::XRayVisionPower
+  cooldown: 0.25
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 25
+  sightRadius: 12
 --- !u!1 &1166228147908126451
 GameObject:
   m_ObjectHideFlags: 0

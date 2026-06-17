@@ -433,8 +433,8 @@ GameObject:
   - component: {fileID: 7770757213648078168}
   - component: {fileID: 2074101671615430527}
   - component: {fileID: 7285914040845675337}
-  - component: {fileID: 3720349497218722776}
   - component: {fileID: 2487464802280915750}
+  - component: {fileID: 8415619385972473051}
   m_Layer: 0
   m_Name: Teacher_ivanzaprqnov
   m_TagString: Untagged
@@ -875,26 +875,6 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &3720349497218722776
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1306396547871473229}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ChalkStormPower
-  cooldown: 4
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 25
-  chalkCount: 5
-  chalkSpeed: 14
-  spreadAngle: 12
-  chalkProjectilePrefab: {fileID: 0}
 --- !u!114 &2487464802280915750
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -910,16 +890,39 @@ MonoBehaviour:
   wanderRadius: 6
   wanderSpeed: 1.4
   chaseSpeed: 3.2
-  chaseRange: 18
+  investigateSpeed: 1.4
   arrivalDistance: 0.4
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &8415619385972473051
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1306396547871473229}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b48127b3fd2c23849a8b877ef1fc457c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ChalkStormPower
+  cooldown: 4
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 25
+  chalkCount: 5
+  chalkSpeed: 14
+  spreadAngle: 12
+  chalkProjectilePrefab: {fileID: 0}
 --- !u!1 &1648765629315078341
 GameObject:
   m_ObjectHideFlags: 0

@@ -1651,8 +1651,8 @@ GameObject:
   - component: {fileID: 3426908984829602069}
   - component: {fileID: 3563287709653770711}
   - component: {fileID: 3397683180725845609}
-  - component: {fileID: 6175586948567318704}
   - component: {fileID: 7036785909950657426}
+  - component: {fileID: 6324704432502996732}
   m_Layer: 0
   m_Name: Teacher_tancheto
   m_TagString: Untagged
@@ -2093,24 +2093,6 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &6175586948567318704
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4613327712513741537}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::WallClimbPower
-  cooldown: 8
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 25
-  verticalReach: 4
-  climbDuration: 1.2
 --- !u!114 &7036785909950657426
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2126,16 +2108,37 @@ MonoBehaviour:
   wanderRadius: 6
   wanderSpeed: 1.4
   chaseSpeed: 3.2
-  chaseRange: 18
+  investigateSpeed: 1.4
   arrivalDistance: 0.4
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &6324704432502996732
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4613327712513741537}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5754b762e82275443a751e45cd6d0c89, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WallClimbPower
+  cooldown: 8
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 25
+  verticalReach: 4
+  climbDuration: 1.2
 --- !u!1 &4767625140526138856
 GameObject:
   m_ObjectHideFlags: 0

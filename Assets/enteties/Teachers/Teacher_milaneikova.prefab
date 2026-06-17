@@ -19,8 +19,8 @@ GameObject:
   - component: {fileID: 7855031404701664488}
   - component: {fileID: 8287146722521786344}
   - component: {fileID: 1001317621550485698}
-  - component: {fileID: 8668792332327538271}
   - component: {fileID: 2832917769992583303}
+  - component: {fileID: 6636210499954593179}
   m_Layer: 0
   m_Name: Teacher_milaneikova
   m_TagString: Untagged
@@ -461,25 +461,6 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &8668792332327538271
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4728412430593535}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CameraHijackPower
-  cooldown: 2
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 9999
-  cameraTag: SecurityCamera
-  cameraFovAngle: 60
-  cameraRange: 15
 --- !u!114 &2832917769992583303
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -495,16 +476,41 @@ MonoBehaviour:
   wanderRadius: 6
   wanderSpeed: 1.4
   chaseSpeed: 3.2
-  chaseRange: 18
+  investigateSpeed: 1.4
   arrivalDistance: 0.4
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &6636210499954593179
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4728412430593535}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dbcbf4b84dd8408448c4c38ac9a6b566, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CameraHijackPower
+  cooldown: 2
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 9999
+  cameraTag: SecurityCamera
+  cameraFovAngle: 60
+  cameraRange: 15
+  laserSpeed: 28
+  laserCount: 2
+  laserEyeOffset: 0.12
 --- !u!1 &380233946655704961
 GameObject:
   m_ObjectHideFlags: 0

@@ -469,7 +469,7 @@ namespace EscapeBlock9.ProcGen.Population
                 return;
             }
 
-            TryConfigureItemPickup(objective, "objective_exit_key", "Exit Authorization Key");
+            ConfigureExitAuthorizationKey(objective);
             SetUsed(markers, objectiveMarker, "objective", objective.name);
             spawns.Add(SpawnRecord("objective", markers[objectiveMarker], "objective", objective.name));
         }
@@ -502,7 +502,7 @@ namespace EscapeBlock9.ProcGen.Population
                     GameObject reward = SpawnGameplayPrefab(root, settings.LootPrefab, markers[localLoot], "fire_exit_reward");
                     if (reward != null)
                     {
-                        TryConfigureItemPickup(reward, $"fire_exit_cache_{fireExit.EdgeId}", "Emergency Cache");
+                        ConfigureExitAuthorizationKey(reward);
                         SetUsed(markers, localLoot, "fire-exit-reward", reward.name);
                         spawns.Add(SpawnRecord("fire-exit-reward", markers[localLoot], "loot", reward.name));
                     }
@@ -553,7 +553,7 @@ namespace EscapeBlock9.ProcGen.Population
                     continue;
                 }
 
-                TryConfigureItemPickup(loot, $"loot_{marker.NodeId}_{i}", "Supplies");
+                ConfigureExitAuthorizationKey(loot);
                 SetUsed(markers, i, "loot", loot.name);
                 spawns.Add(SpawnRecord("loot", markers[i], "loot", loot.name));
             }
@@ -979,6 +979,11 @@ namespace EscapeBlock9.ProcGen.Population
 
             ItemIdField?.SetValue(itemPickup, itemId);
             ItemDisplayNameField?.SetValue(itemPickup, displayName);
+        }
+
+        private static void ConfigureExitAuthorizationKey(GameObject target)
+        {
+            TryConfigureItemPickup(target, "objective_exit_key", "Exit Authorization Key");
         }
 
         private static void TryAddFlicker(GameObject lightRoot)

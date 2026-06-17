@@ -3322,8 +3322,8 @@ GameObject:
   - component: {fileID: 3466473607203825838}
   - component: {fileID: 3784289403784642037}
   - component: {fileID: 5490101269639655668}
-  - component: {fileID: 2702361468635414993}
   - component: {fileID: 3261073190905642503}
+  - component: {fileID: 492828809236302385}
   m_Layer: 0
   m_Name: Teacher_frenski
   m_TagString: Untagged
@@ -3764,27 +3764,6 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &2702361468635414993
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9007792792295008499}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MedusaStarePower
-  cooldown: 6
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 25
-  lookConeAngle: 28
-  freezeDuration: 3
-  playerCamera: {fileID: 0}
-  eyeGlowRenderer: {fileID: 0}
-  glowColor: {r: 1, g: 0.85, b: 0.1, a: 1}
 --- !u!114 &3261073190905642503
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3800,16 +3779,40 @@ MonoBehaviour:
   wanderRadius: 6
   wanderSpeed: 1.4
   chaseSpeed: 3.2
-  chaseRange: 18
+  investigateSpeed: 1.4
   arrivalDistance: 0.4
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &492828809236302385
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9007792792295008499}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 15c0e3ab5643fef47bb867f9ebc03c8f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MedusaStarePower
+  cooldown: 6
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 25
+  lookConeAngle: 28
+  freezeDuration: 3
+  playerCamera: {fileID: 0}
+  eyeGlowRenderer: {fileID: 0}
+  glowColor: {r: 1, g: 0.85, b: 0.1, a: 1}
 --- !u!1 &9184955161745107864
 GameObject:
   m_ObjectHideFlags: 0

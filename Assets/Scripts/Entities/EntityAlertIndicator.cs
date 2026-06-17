@@ -1,6 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 [ExecuteAlways]
 public class EntityAlertIndicator : MonoBehaviour
 {
@@ -148,7 +152,14 @@ public class EntityAlertIndicator : MonoBehaviour
     {
         if (dotRect != null)
         {
-            Destroy(dotRect.gameObject);
+            if (Application.isPlaying)
+            {
+                Destroy(dotRect.gameObject);
+            }
+            else
+            {
+                DestroyImmediate(dotRect.gameObject);
+            }
         }
 
         ClearVisionRays();
@@ -161,10 +172,35 @@ public class EntityAlertIndicator : MonoBehaviour
         suspicionParamHash = Animator.StringToHash(suspicionParameter);
         hasSuspicionParameter = HasAnimatorFloatParameter();
         EnsureUiDot();
+        ApplyState();
+
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            EditorApplication.delayCall -= RefreshEditorPreviewAfterValidate;
+            EditorApplication.delayCall += RefreshEditorPreviewAfterValidate;
+            return;
+        }
+#endif
+
+        EnsureVisionRays();
+        UpdateVisionRays();
+    }
+
+#if UNITY_EDITOR
+    private void RefreshEditorPreviewAfterValidate()
+    {
+        EditorApplication.delayCall -= RefreshEditorPreviewAfterValidate;
+        if (this == null || Application.isPlaying)
+        {
+            return;
+        }
+
         EnsureVisionRays();
         UpdateVisionRays();
         ApplyState();
     }
+#endif
 
     public void SetCalm()
     {

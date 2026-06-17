@@ -2606,8 +2606,8 @@ GameObject:
   - component: {fileID: 2700196015392203662}
   - component: {fileID: 5726721019956667758}
   - component: {fileID: 8609814978566067369}
-  - component: {fileID: 4420426964776570115}
   - component: {fileID: 6100226079207530149}
+  - component: {fileID: 442494777995010403}
   m_Layer: 0
   m_Name: Teacher_ivazaharieva
   m_TagString: Untagged
@@ -3048,24 +3048,6 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &4420426964776570115
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7531312948631749980}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TeacherSprintPower
-  cooldown: 10
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 25
-  sprintMultiplier: 2.2
-  sprintDuration: 4
 --- !u!114 &6100226079207530149
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3081,16 +3063,37 @@ MonoBehaviour:
   wanderRadius: 6
   wanderSpeed: 1.4
   chaseSpeed: 3.2
-  chaseRange: 18
+  investigateSpeed: 1.4
   arrivalDistance: 0.4
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &442494777995010403
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7531312948631749980}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f678e31f61f9161498dbe3621afd8007, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TeacherSprintPower
+  cooldown: 10
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 25
+  sprintMultiplier: 2.2
+  sprintDuration: 4
 --- !u!1 &7870945400089337631
 GameObject:
   m_ObjectHideFlags: 0

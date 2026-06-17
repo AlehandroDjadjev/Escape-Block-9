@@ -124,8 +124,14 @@ namespace EscapeBlock9.ProcGen.Planning
             int fireExitCount = random.RangeInclusive(countRange.Min, countRange.Max);
             for (int i = 0; i < fireExitCount; i++)
             {
+                if (eligibleMainPathIndices.Count == 0)
+                {
+                    break;
+                }
+
                 int pick = random.RangeInclusive(0, eligibleMainPathIndices.Count - 1);
                 int rootMainIndex = eligibleMainPathIndices[pick];
+                eligibleMainPathIndices.RemoveAt(pick);
                 int rootNodeId = graph.MainPathNodeIds[rootMainIndex];
                 int floor = graph.GetNode(rootNodeId).Floor;
                 int branchId = graph.Branches.Count;

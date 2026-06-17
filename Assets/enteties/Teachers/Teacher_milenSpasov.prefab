@@ -2255,8 +2255,8 @@ GameObject:
   - component: {fileID: 4941560216416772501}
   - component: {fileID: 3399441398877574362}
   - component: {fileID: 3243882069564976242}
-  - component: {fileID: 789327074751718620}
   - component: {fileID: 7127155639412883026}
+  - component: {fileID: 4640428412363215542}
   m_Layer: 0
   m_Name: Teacher_milenSpasov
   m_TagString: Untagged
@@ -2697,25 +2697,6 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &789327074751718620
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6344532144623558484}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DetentionTrapPower
-  cooldown: 4
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 25
-  trapRadius: 1.2
-  trapLifetime: 30
-  slowDuration: 5
 --- !u!114 &7127155639412883026
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2731,16 +2712,38 @@ MonoBehaviour:
   wanderRadius: 6
   wanderSpeed: 1.4
   chaseSpeed: 3.2
-  chaseRange: 18
+  investigateSpeed: 1.4
   arrivalDistance: 0.4
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &4640428412363215542
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6344532144623558484}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: feee585ca14df0548839bda39c12a1c5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DetentionTrapPower
+  cooldown: 4
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 25
+  trapRadius: 1.2
+  trapLifetime: 30
+  slowDuration: 5
 --- !u!1 &6450296087305945801
 GameObject:
   m_ObjectHideFlags: 0
