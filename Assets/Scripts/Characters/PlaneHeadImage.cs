@@ -52,6 +52,13 @@ public class PlaneHeadImage : MonoBehaviour
             propertyBlock.SetTexture("_BaseMap", headImage);
         }
 
+        // Flip the photo vertically. The head's sphere UVs map the photo upside
+        // down on the visible side, so set tile.y = -1 and offset.y = 1 to mirror
+        // V without mirroring U (which would flip the face left-right).
+        Vector4 flipST = new Vector4(1f, -1f, 0f, 1f); // (tileX, tileY, offsetX, offsetY)
+        propertyBlock.SetVector("_MainTex_ST", flipST);
+        propertyBlock.SetVector("_BaseMap_ST", flipST);
+
         cachedRenderer.SetPropertyBlock(propertyBlock);
     }
 }

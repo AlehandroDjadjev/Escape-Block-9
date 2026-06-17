@@ -18,6 +18,13 @@ public class SimpleTeacherWander : MonoBehaviour
     [SerializeField] private float arrivalDistance = 0.6f;
     [SerializeField] private float pickNewTargetEverySeconds = 5f;
     [SerializeField] private float turnSpeed = 6f;
+    [SerializeField] private float chaseTurnSpeed = 10f;
+
+    // The teacher prefabs are authored with their visible face on the model's -Z side
+    // (root prefab is rotated -180° in the editor). LookRotation points the GameObject's
+    // +Z at the target, so we have to rotate an extra 180° around Y to bring the face
+    // to the front. Set to 0 if you swap in a model whose face is already on +Z.
+    [SerializeField] private float modelYawOffset = 180f;
 
     [Header("Vision")]
     [SerializeField] private float visionRange = 18f;
@@ -59,12 +66,25 @@ public class SimpleTeacherWander : MonoBehaviour
 
     private static int spawnCounter;
 
+    private Animator cachedAnimator;
+
     private void Awake()
     {
-        wanderSpeed = 0.8f;
-        chaseSpeed = 2.0f;
-        investigateSpeed = 1.4f;
+        wanderSpeed = 1.4f;
+        chaseSpeed = 3.5f;
+        investigateSpeed = 2.4f;
         visionConeAngle = 270f; // override any scene-instance value
+
+        // Hard-disable the Animator. Its suspicious_turn clip drives the root's Y
+        // rotation and produces "spinning head" behavior that fights our facing.
+        // Disabling here as well as in the generator covers scene instances that
+        // predate the latest prefab regeneration.
+        cachedAnimator = GetComponent<Animator>();
+        if (cachedAnimator != null) cachedAnimator.enabled = false;
+
+        // Hide the white "vision ray" strips that fan out from each teacher.
+        var visionRaysRoot = transform.Find("VisionRaysRoot");
+        if (visionRaysRoot != null) visionRaysRoot.gameObject.SetActive(false);
 
         var dolly = GetComponent("EntityCinemachineDollyFollower") as Behaviour;
         if (dolly != null) dolly.enabled = false;
@@ -105,6 +125,13 @@ public class SimpleTeacherWander : MonoBehaviour
         transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
     }
 
+    // Direction to face this frame, written by Update and applied in LateUpdate
+    // (so the Animator's suspicious_turn clip — which animates the root's Y angle —
+    // can't overwrite us after Update returns).
+    private Vector3 desiredFaceDir;
+    private bool hasDesiredFace;
+    private bool isChasingFace; // true when locking onto the player (use chaseTurnSpeed)
+
     private void Update()
     {
         if (player == null) FindPlayer();
@@ -112,6 +139,23 @@ public class SimpleTeacherWander : MonoBehaviour
         CanSeePlayer = HasLineOfSightOnPlayer();
         UpdateState();
         CheckIfStuck();
+
+        hasDesiredFace = false;
+
+        // When chasing, lock the facing onto the player every frame so they never
+        // chase sideways or lag behind a strafing target.
+        if (state == AIState.Chase && player != null)
+        {
+            Vector3 lookDir = player.position - transform.position;
+            lookDir.y = 0f;
+            if (lookDir.sqrMagnitude > 0.001f)
+            {
+                desiredFaceDir = lookDir.normalized;
+                hasDesiredFace = true;
+                isChasingFace = true;
+            }
+        }
+
         Vector3 dir;
         float speed;
         if (!PickMoveTarget(out dir, out speed)) { SnapToGround(); return; }
@@ -121,11 +165,23 @@ public class SimpleTeacherWander : MonoBehaviour
         transform.position += allowed;
         SnapToGround();
 
-        if (dir.sqrMagnitude > 0.0001f)
+        // Outside chase, face the direction of motion as before.
+        if (state != AIState.Chase && dir.sqrMagnitude > 0.0001f)
         {
-            Quaternion target = Quaternion.LookRotation(dir, Vector3.up);
-            transform.rotation = Quaternion.Slerp(transform.rotation, target, turnSpeed * Time.deltaTime);
+            desiredFaceDir = dir;
+            hasDesiredFace = true;
+            isChasingFace = false;
         }
+    }
+
+    private void LateUpdate()
+    {
+        if (!hasDesiredFace) return;
+
+        Quaternion target = Quaternion.LookRotation(desiredFaceDir, Vector3.up)
+                            * Quaternion.Euler(0f, modelYawOffset, 0f);
+        float speed = isChasingFace ? chaseTurnSpeed : turnSpeed;
+        transform.rotation = Quaternion.Slerp(transform.rotation, target, speed * Time.deltaTime);
     }
 
     // If the teacher hasn't moved much in StuckCheckInterval seconds while trying to

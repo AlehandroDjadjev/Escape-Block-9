@@ -154,6 +154,28 @@ public static class TeacherGenerator
         var splineCart = instance.GetComponent("CinemachineSplineCart") as Behaviour;
         if (splineCart != null) splineCart.enabled = false;
 
+        // The Animator's suspicious_turn clip animates the root's Y rotation every
+        // frame, fighting SimpleTeacherWander's facing logic and producing a "spinning
+        // head" effect. Disable the Animator permanently so the wander script owns
+        // rotation cleanly. (Side effect: leg/arm walk cycle stops — acceptable.)
+        var animator = instance.GetComponent<Animator>();
+        if (animator != null) animator.enabled = false;
+
+        // Hide the debug vision-ray strips (the white "looking at" lines fanning out
+        // from each teacher). They were on by default for development.
+        var alertIndicator = instance.GetComponent<EntityAlertIndicator>();
+        if (alertIndicator != null)
+        {
+            var so = new SerializedObject(alertIndicator);
+            var showProp   = so.FindProperty("showVisionRays");
+            var alwaysProp = so.FindProperty("alwaysShowVisionRays");
+            var editProp   = so.FindProperty("updateVisionRaysInEditMode");
+            if (showProp   != null) showProp.boolValue   = false;
+            if (alwaysProp != null) alwaysProp.boolValue = false;
+            if (editProp   != null) editProp.boolValue   = false;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         // Save as a new prefab
         string outPath = $"{OutputFolder}/Teacher_{spec.slug}.prefab";
         PrefabUtility.SaveAsPrefabAsset(instance, outPath);

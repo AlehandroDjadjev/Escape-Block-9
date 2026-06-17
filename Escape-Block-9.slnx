@@ -1,4 +1,6 @@
 ﻿<Solution>
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="EscapeBlock9.ProcGen.csproj" />
+  <Project Path="EscapeBlock9.ProcGen.EditModeTests.csproj" />
 </Solution>

@@ -105,5 +105,11 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
-.claude/worktrees/determined-curran-c5175c/
+# Claude Code local data: worktrees, sessions, plans, etc.
+# Never commit anything under .claude/ — it's per-user, per-machine state.
+.claude/
+
+# Unity standalone player builds. These belong in releases, not git history.
+/Escape Block 9 exe*/
+
 backend/.env

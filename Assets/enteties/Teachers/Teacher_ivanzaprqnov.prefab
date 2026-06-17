@@ -433,8 +433,8 @@ GameObject:
   - component: {fileID: 7770757213648078168}
   - component: {fileID: 2074101671615430527}
   - component: {fileID: 7285914040845675337}
+  - component: {fileID: 1083615428794585414}
   - component: {fileID: 2487464802280915750}
-  - component: {fileID: 8415619385972473051}
   m_Layer: 0
   m_Name: Teacher_ivanzaprqnov
   m_TagString: Untagged
@@ -539,7 +539,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1306396547871473229}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 2e207fbf4e14ba747b8d71c243ca559a, type: 2}
   m_CullingMode: 0
@@ -591,9 +591,9 @@ MonoBehaviour:
   centralRaySuspicion: 6
   peripheralSuspicionMin: 1
   peripheralSuspicionMax: 2
-  showVisionRays: 1
-  alwaysShowVisionRays: 1
-  updateVisionRaysInEditMode: 1
+  showVisionRays: 0
+  alwaysShowVisionRays: 0
+  updateVisionRaysInEditMode: 0
   visionOrigin: {fileID: 1305528919924859833}
   alignVisionToHead: 1
   visionYawOffset: 0
@@ -875,6 +875,26 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
+--- !u!114 &1083615428794585414
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1306396547871473229}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ChalkStormPower
+  cooldown: 5
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 25
+  chalkCount: 3
+  chalkSpeed: 30
+  spreadAngle: 4
+  chalkProjectilePrefab: {fileID: 0}
 --- !u!114 &2487464802280915750
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -888,12 +908,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleTeacherWander
   wanderRadius: 6
-  wanderSpeed: 1.4
-  chaseSpeed: 3.2
-  investigateSpeed: 1.4
-  arrivalDistance: 0.4
+  wanderSpeed: 1.1
+  chaseSpeed: 2.8
+  investigateSpeed: 1.9
+  arrivalDistance: 0.6
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  chaseTurnSpeed: 10
+  modelYawOffset: 180
   visionRange: 18
   visionConeAngle: 270
   eyeHeight: 1.6
@@ -903,26 +925,6 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
---- !u!114 &8415619385972473051
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1306396547871473229}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b48127b3fd2c23849a8b877ef1fc457c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ChalkStormPower
-  cooldown: 4
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 25
-  chalkCount: 5
-  chalkSpeed: 14
-  spreadAngle: 12
-  chalkProjectilePrefab: {fileID: 0}
 --- !u!1 &1648765629315078341
 GameObject:
   m_ObjectHideFlags: 0
@@ -3778,7 +3780,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &7230618446637493004
 Transform:
   m_ObjectHideFlags: 0

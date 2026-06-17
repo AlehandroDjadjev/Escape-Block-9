@@ -2402,7 +2402,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &617446908717654714
 Transform:
   m_ObjectHideFlags: 0
@@ -2757,8 +2757,8 @@ GameObject:
   - component: {fileID: 984872316035252278}
   - component: {fileID: 5174737820580495247}
   - component: {fileID: 6578356386768554856}
+  - component: {fileID: 9145457112880914851}
   - component: {fileID: 1647027188764364367}
-  - component: {fileID: 217238382505916946}
   m_Layer: 0
   m_Name: Teacher_direktorka
   m_TagString: Untagged
@@ -2863,7 +2863,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6459166060699577533}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 2e207fbf4e14ba747b8d71c243ca559a, type: 2}
   m_CullingMode: 0
@@ -2915,9 +2915,9 @@ MonoBehaviour:
   centralRaySuspicion: 6
   peripheralSuspicionMin: 1
   peripheralSuspicionMax: 2
-  showVisionRays: 1
-  alwaysShowVisionRays: 1
-  updateVisionRaysInEditMode: 1
+  showVisionRays: 0
+  alwaysShowVisionRays: 0
+  updateVisionRaysInEditMode: 0
   visionOrigin: {fileID: 7361695735854751279}
   alignVisionToHead: 1
   visionYawOffset: 0
@@ -3199,6 +3199,25 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
+--- !u!114 &9145457112880914851
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6459166060699577533}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SealedBuildingPower
+  cooldown: 99999
+  requireAggro: 0
+  player: {fileID: 0}
+  activationRange: 9999
+  lockdownDuration: 12
+  oncePerMatch: 1
+  lockdownSiren: {fileID: 0}
 --- !u!114 &1647027188764364367
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3212,12 +3231,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleTeacherWander
   wanderRadius: 6
-  wanderSpeed: 1.4
-  chaseSpeed: 3.2
-  investigateSpeed: 1.4
-  arrivalDistance: 0.4
+  wanderSpeed: 1.1
+  chaseSpeed: 2.8
+  investigateSpeed: 1.9
+  arrivalDistance: 0.6
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  chaseTurnSpeed: 10
+  modelYawOffset: 180
   visionRange: 18
   visionConeAngle: 270
   eyeHeight: 1.6
@@ -3227,25 +3248,6 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
---- !u!114 &217238382505916946
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6459166060699577533}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 86be73a45fbeec546aea26a101e57e78, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SealedBuildingPower
-  cooldown: 99999
-  requireAggro: 0
-  player: {fileID: 0}
-  activationRange: 9999
-  lockdownDuration: 30
-  oncePerMatch: 1
-  lockdownSiren: {fileID: 0}
 --- !u!1 &7302530029994570843
 GameObject:
   m_ObjectHideFlags: 0
