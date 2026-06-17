@@ -70,7 +70,6 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     private Text lobbyStatusText;
     private Text overlayStatusText;
     private Button connectGuestButton;
-    private Button singleplayerTestButton;
     private Button createLobbyButton;
     private Button joinLobbyButton;
     private Button readyButton;
@@ -89,6 +88,17 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
 
     public static bool ShouldSuppressBuiltInUi => instance != null && instance.suppressBuiltInUi;
     public static bool ControlsProceduralGeneration => instance != null && instance.suppressBuiltInUi;
+
+    public static bool NotifyPlayerEscaped()
+    {
+        if (instance == null)
+        {
+            return false;
+        }
+
+        instance.HandlePlayerEscaped();
+        return true;
+    }
 
     public static bool TryGetDesiredSpawnSlot(out int slot)
     {
@@ -169,46 +179,53 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         rootCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
         rootCanvas.sortingOrder = 8000;
         canvasObject.AddComponent<GraphicRaycaster>();
-        DontDestroyOnLoad(canvasObject);
+        CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
         DontDestroyOnLoad(canvasObject);
 
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        Color ink = new Color(0.04f, 0.05f, 0.08f, 0.96f);
-        Color panel = new Color(0.08f, 0.1f, 0.16f, 0.94f);
-        Color soft = new Color(0.13f, 0.16f, 0.25f, 0.94f);
-        Color accent = new Color(0.2f, 0.74f, 1f, 1f);
+        Color ink = new Color(0.012f, 0.01f, 0.012f, 1f);
+        Color panel = new Color(0.045f, 0.05f, 0.055f, 1f);
+        Color soft = new Color(0.12f, 0.12f, 0.105f, 1f);
+        Color accent = new Color(0.62f, 0.035f, 0.045f, 1f);
+        Color gold = new Color(0.86f, 0.66f, 0.16f, 1f);
 
         authPanel = CreateFullScreenPanel(rootCanvas.transform, "AuthPanel", ink);
-        CreateText(authPanel.transform, "AuthTitle", "Escape Block 9 Multiplayer", font, 50, new Vector2(0.5f, 0.82f), new Vector2(900f, 80f), Color.white);
-        CreateText(authPanel.transform, "AuthSubtitle", "Hosted CaveGame backend, 2-player lobby", font, 22, new Vector2(0.5f, 0.75f), new Vector2(700f, 40f), new Color(0.78f, 0.84f, 0.95f, 1f));
-        GameObject authCard = CreatePanel(authPanel.transform, "AuthCard", panel, new Vector2(0.5f, 0.48f), new Vector2(720f, 360f));
-        CreateText(authCard.transform, "ServerLabel", "Server URL", font, 20, new Vector2(0.5f, 0.83f), new Vector2(620f, 32f), new Color(0.82f, 0.88f, 0.97f, 1f));
-        serverUrlInput = CreateInputField(authCard.transform, "ServerInput", font, new Vector2(0.5f, 0.67f), new Vector2(610f, 52f), api.BaseHttpUrl);
-        connectGuestButton = CreateButton(authCard.transform, "ConnectGuestButton", "Connect As Guest", font, new Vector2(0.5f, 0.41f), new Vector2(320f, 58f), accent, OnConnectGuestPressed);
-        singleplayerTestButton = CreateButton(authCard.transform, "SingleplayerTestButton", "Start Singleplayer Test", font, new Vector2(0.5f, 0.23f), new Vector2(320f, 52f), new Color(0.34f, 0.62f, 0.95f, 1f), OnSingleplayerTestPressed);
-        authStatusText = CreateText(authCard.transform, "AuthStatus", string.Empty, font, 18, new Vector2(0.5f, 0.08f), new Vector2(620f, 70f), new Color(0.9f, 0.93f, 0.98f, 1f));
+        CreateMenuDecor(authPanel.transform, font, "AUTHORIZED PERSONNEL ONLY");
+        Text authTitle = CreateText(authPanel.transform, "AuthTitle", "ESCAPE BLOCK 9", font, 68, new Vector2(0.5f, 0.82f), new Vector2(980f, 92f), new Color(1f, 0.95f, 0.78f, 1f));
+        AddTextOutline(authTitle, new Color(0.55f, 0f, 0.02f, 1f), new Vector2(3f, -3f));
+        CreateText(authPanel.transform, "AuthSubtitle", "Co-op horror for people who read the evacuation plan and still got lost.", font, 24, new Vector2(0.5f, 0.74f), new Vector2(980f, 44f), new Color(0.78f, 0.84f, 0.78f, 1f));
+        GameObject authCard = CreatePanel(authPanel.transform, "AuthCard", panel, new Vector2(0.5f, 0.47f), new Vector2(780f, 370f));
+        CreateText(authCard.transform, "ServerLabel", "Backend Address", font, 21, new Vector2(0.5f, 0.8f), new Vector2(640f, 34f), new Color(0.88f, 0.8f, 0.58f, 1f));
+        serverUrlInput = CreateInputField(authCard.transform, "ServerInput", font, new Vector2(0.5f, 0.63f), new Vector2(640f, 54f), api.BaseHttpUrl);
+        connectGuestButton = CreateButton(authCard.transform, "ConnectGuestButton", "Claim Guest Badge", font, new Vector2(0.5f, 0.38f), new Vector2(340f, 60f), accent, OnConnectGuestPressed);
+        authStatusText = CreateText(authCard.transform, "AuthStatus", string.Empty, font, 18, new Vector2(0.5f, 0.16f), new Vector2(660f, 76f), new Color(0.9f, 0.9f, 0.82f, 1f));
 
         lobbyPanel = CreateFullScreenPanel(rootCanvas.transform, "LobbyPanel", ink);
-        CreateText(lobbyPanel.transform, "LobbyTitle", "Lobby", font, 46, new Vector2(0.5f, 0.9f), new Vector2(700f, 70f), Color.white);
-        GameObject lobbyCard = CreatePanel(lobbyPanel.transform, "LobbyCard", panel, new Vector2(0.5f, 0.52f), new Vector2(860f, 520f));
-        lobbyTitleText = CreateText(lobbyCard.transform, "LobbyHeader", "Not Connected", font, 30, new Vector2(0.5f, 0.9f), new Vector2(620f, 42f), Color.white);
-        lobbyCodeText = CreateText(lobbyCard.transform, "LobbyCode", string.Empty, font, 20, new Vector2(0.5f, 0.82f), new Vector2(560f, 34f), new Color(0.8f, 0.88f, 0.98f, 1f));
+        CreateMenuDecor(lobbyPanel.transform, font, "LOBBY DESK - ONE FORM PER PANIC");
+        Text lobbyTitle = CreateText(lobbyPanel.transform, "LobbyTitle", "MULTIPLAYER", font, 60, new Vector2(0.5f, 0.88f), new Vector2(780f, 78f), new Color(1f, 0.95f, 0.78f, 1f));
+        AddTextOutline(lobbyTitle, new Color(0.55f, 0f, 0.02f, 1f), new Vector2(3f, -3f));
+        GameObject lobbyCard = CreatePanel(lobbyPanel.transform, "LobbyCard", panel, new Vector2(0.5f, 0.5f), new Vector2(900f, 560f));
+        lobbyTitleText = CreateText(lobbyCard.transform, "LobbyHeader", "Not Connected", font, 32, new Vector2(0.5f, 0.9f), new Vector2(660f, 44f), new Color(1f, 0.95f, 0.78f, 1f));
+        lobbyCodeText = CreateText(lobbyCard.transform, "LobbyCode", string.Empty, font, 21, new Vector2(0.5f, 0.82f), new Vector2(560f, 34f), new Color(0.82f, 0.85f, 0.78f, 1f));
 
-        createLobbyButton = CreateButton(lobbyCard.transform, "CreateLobbyButton", "Create 2-Player Lobby", font, new Vector2(0.28f, 0.7f), new Vector2(280f, 54f), accent, OnCreateLobbyPressed);
-        joinCodeInput = CreateInputField(lobbyCard.transform, "JoinCodeInput", font, new Vector2(0.68f, 0.71f), new Vector2(180f, 50f), string.Empty);
+        createLobbyButton = CreateButton(lobbyCard.transform, "CreateLobbyButton", "Create Lobby", font, new Vector2(0.27f, 0.7f), new Vector2(250f, 56f), accent, OnCreateLobbyPressed);
+        joinCodeInput = CreateInputField(lobbyCard.transform, "JoinCodeInput", font, new Vector2(0.66f, 0.71f), new Vector2(190f, 52f), string.Empty);
         joinCodeInput.characterLimit = 6;
-        joinLobbyButton = CreateButton(lobbyCard.transform, "JoinLobbyButton", "Join", font, new Vector2(0.87f, 0.71f), new Vector2(110f, 50f), soft, OnJoinLobbyPressed);
+        joinLobbyButton = CreateButton(lobbyCard.transform, "JoinLobbyButton", "Join", font, new Vector2(0.86f, 0.71f), new Vector2(120f, 52f), soft, OnJoinLobbyPressed);
 
-        CreateText(lobbyCard.transform, "PlayersHeader", "Players", font, 24, new Vector2(0.5f, 0.57f), new Vector2(240f, 34f), new Color(0.92f, 0.95f, 1f, 1f));
+        CreateText(lobbyCard.transform, "PlayersHeader", "Escape Committee", font, 24, new Vector2(0.5f, 0.57f), new Vector2(280f, 34f), new Color(0.88f, 0.8f, 0.58f, 1f));
         slotViews.Add(CreateSlotView(lobbyCard.transform, font, new Vector2(0.5f, 0.43f), 1));
         slotViews.Add(CreateSlotView(lobbyCard.transform, font, new Vector2(0.5f, 0.28f), 2));
 
-        readyButton = CreateButton(lobbyCard.transform, "ReadyButton", "Ready Up", font, new Vector2(0.32f, 0.1f), new Vector2(220f, 54f), new Color(0.18f, 0.7f, 0.4f, 1f), OnReadyPressed);
-        startButton = CreateButton(lobbyCard.transform, "StartButton", "Start Match", font, new Vector2(0.68f, 0.1f), new Vector2(220f, 54f), new Color(0.9f, 0.57f, 0.19f, 1f), OnStartPressed);
+        readyButton = CreateButton(lobbyCard.transform, "ReadyButton", "Ready Up", font, new Vector2(0.32f, 0.1f), new Vector2(220f, 54f), new Color(0.15f, 0.46f, 0.25f, 1f), OnReadyPressed);
+        startButton = CreateButton(lobbyCard.transform, "StartButton", "Start Run", font, new Vector2(0.68f, 0.1f), new Vector2(220f, 54f), gold, OnStartPressed);
         resetButton = CreateButton(lobbyCard.transform, "ResetButton", "Back", font, new Vector2(0.5f, -0.04f), new Vector2(140f, 42f), soft, ResetToAuth);
-        lobbyStatusText = CreateText(lobbyCard.transform, "LobbyStatus", string.Empty, font, 18, new Vector2(0.5f, -0.13f), new Vector2(620f, 68f), new Color(0.9f, 0.93f, 0.98f, 1f));
+        lobbyStatusText = CreateText(lobbyCard.transform, "LobbyStatus", string.Empty, font, 18, new Vector2(0.5f, -0.13f), new Vector2(650f, 68f), new Color(0.9f, 0.9f, 0.82f, 1f));
 
-        overlayPanel = CreateFullScreenPanel(rootCanvas.transform, "OverlayPanel", new Color(0f, 0f, 0f, 0.4f));
+        overlayPanel = CreateFullScreenPanel(rootCanvas.transform, "OverlayPanel", new Color(0f, 0f, 0f, 0.78f));
         GameObject overlayCard = CreatePanel(overlayPanel.transform, "OverlayCard", panel, new Vector2(0.5f, 0.12f), new Vector2(520f, 70f));
         overlayStatusText = CreateText(overlayCard.transform, "OverlayStatus", string.Empty, font, 18, new Vector2(0.5f, 0.5f), new Vector2(480f, 40f), Color.white);
 
@@ -373,39 +390,6 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             SetAuthStatus($"Connected as {currentUser.username}.");
             ShowLobbyPanel();
         }));
-    }
-
-    private void OnSingleplayerTestPressed()
-    {
-        suppressBuiltInUi = false;
-        gameStarted = false;
-        generationReady = true;
-        generationRequested = false;
-        StopLobbyMusic();
-
-        authPanel.SetActive(false);
-        lobbyPanel.SetActive(false);
-        overlayPanel.SetActive(false);
-
-        RefreshLocalReferences();
-        runtimeGenerator = FindAnyObjectByType<FacilityRuntimeGenerator>();
-        if (runtimeGenerator != null)
-        {
-            runtimeGenerator.ConfigurePreviewConnectedRoomLayout(12);
-            runtimeGenerator.RandomizeSeedAndGenerate();
-        }
-
-        GameFlowUIController gameFlow = FindAnyObjectByType<GameFlowUIController>();
-        if (gameFlow != null)
-        {
-            gameFlow.BeginSingleplayerTestSession();
-        }
-        else
-        {
-            SetLocalGameplayEnabled(true);
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-        }
     }
 
     private void OnCreateLobbyPressed()
@@ -786,6 +770,48 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         PreSpawnRemotePlayers(generator);
     }
 
+    private void HandlePlayerEscaped()
+    {
+        Time.timeScale = 1f;
+        gameStarted = false;
+        generationReady = false;
+        generationRequested = false;
+        currentGameStart = null;
+        localStateSeq = 0;
+
+        if (gameSocket != null)
+        {
+            gameSocket.Opened -= OnGameSocketOpened;
+            gameSocket.MessageReceived -= OnGameSocketMessage;
+            gameSocket.Closed -= OnGameSocketClosed;
+            gameSocket.ErrorReceived -= OnGameSocketError;
+            gameSocket.Close();
+            gameSocket = null;
+        }
+
+        ClearRemotePlayers();
+        if (runtimeGenerator != null && runtimeGenerator.GeneratedRoot != null)
+        {
+            DestroyUnityObject(runtimeGenerator.GeneratedRoot);
+        }
+
+        RefreshLocalReferences();
+        SetLocalGameplayEnabled(false);
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        if (guestAuthenticated && currentLobby != null)
+        {
+            ShowLobbyPanel();
+            SetLobbyStatus("Run complete. You escaped. The paperwork did not.");
+            ConnectLobbySocket(currentLobby.id);
+            StartCoroutine(RefreshLobbyFromServer());
+            return;
+        }
+
+        ShowAuthPanel("Run complete. Connect to the multiplayer desk for the next mistake.");
+    }
+
     private void PreSpawnRemotePlayers(FacilityRuntimeGenerator generator)
     {
         if (currentLobby?.members == null || generator == null)
@@ -949,7 +975,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         readyButton.GetComponentInChildren<Text>().text = localMember != null && localMember.isReady ? "Unready" : "Ready Up";
         readyButton.interactable = localMember != null;
         startButton.interactable = isHost && allReady && CountMembers() == MaxPlayers;
-        startButton.GetComponentInChildren<Text>().text = isHost ? "Start Match" : "Waiting For Host";
+        startButton.GetComponentInChildren<Text>().text = isHost ? "Start Run" : "Waiting For Host";
     }
 
     private MultiplayerLobbyMemberDto FindMemberInSlot(int slot)
@@ -1068,6 +1094,12 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             gameSocket = null;
         }
 
+        ClearRemotePlayers();
+        ShowAuthPanel(guestAuthenticated ? $"Connected as {currentUser?.username}. You can reconnect to a lobby." : "Connect to the hosted backend as a guest.");
+    }
+
+    private void ClearRemotePlayers()
+    {
         foreach (KeyValuePair<string, EscapeBlock9RemotePlayerProxy> pair in remotePlayers)
         {
             if (pair.Value != null)
@@ -1077,7 +1109,6 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         }
 
         remotePlayers.Clear();
-        ShowAuthPanel(guestAuthenticated ? $"Connected as {currentUser?.username}. You can reconnect to a lobby." : "Connect to the hosted backend as a guest.");
     }
 
     private void EnsureLobbyMusicSource()
@@ -1261,6 +1292,16 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         return panel;
     }
 
+    private static void CreateMenuDecor(Transform parent, Font font, string bannerText)
+    {
+        CreatePanel(parent, "TopBloodBand", new Color(0.27f, 0.015f, 0.018f, 1f), new Vector2(0.5f, 0.93f), new Vector2(2200f, 150f));
+        CreatePanel(parent, "WarningStripe", new Color(0.86f, 0.66f, 0.16f, 0.95f), new Vector2(0.5f, 0.68f), new Vector2(1040f, 16f));
+        CreatePanel(parent, "LowInkBand", new Color(0.025f, 0.028f, 0.028f, 1f), new Vector2(0.5f, 0.08f), new Vector2(2200f, 150f));
+        Text banner = CreateText(parent, "BannerText", bannerText, font, 18, new Vector2(0.5f, 0.94f), new Vector2(900f, 34f), new Color(1f, 0.89f, 0.55f, 1f));
+        AddTextOutline(banner, new Color(0f, 0f, 0f, 0.75f), new Vector2(1.5f, -1.5f));
+        CreateText(parent, "MenuFooter", "Block 9 guarantees two exits: one legal, one theoretical.", font, 18, new Vector2(0.5f, 0.08f), new Vector2(900f, 34f), new Color(0.68f, 0.66f, 0.56f, 1f));
+    }
+
     private static GameObject CreatePanel(Transform parent, string name, Color color, Vector2 anchor, Vector2 size)
     {
         GameObject panel = new GameObject(name);
@@ -1293,6 +1334,18 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         return text;
     }
 
+    private static void AddTextOutline(Text text, Color color, Vector2 distance)
+    {
+        if (text == null)
+        {
+            return;
+        }
+
+        Outline outline = text.gameObject.AddComponent<Outline>();
+        outline.effectColor = color;
+        outline.effectDistance = distance;
+    }
+
     private static InputField CreateInputField(Transform parent, string name, Font font, Vector2 anchor, Vector2 size, string defaultText)
     {
         GameObject root = new GameObject(name);
@@ -1303,7 +1356,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.sizeDelta = size;
         Image image = root.AddComponent<Image>();
-        image.color = new Color(0.15f, 0.18f, 0.25f, 0.98f);
+        image.color = new Color(0.018f, 0.02f, 0.022f, 1f);
         InputField input = root.AddComponent<InputField>();
 
         GameObject placeholderObject = new GameObject("Placeholder");
@@ -1317,8 +1370,8 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         placeholder.font = font;
         placeholder.fontSize = 18;
         placeholder.alignment = TextAnchor.MiddleLeft;
-        placeholder.color = new Color(0.6f, 0.66f, 0.75f, 0.75f);
-        placeholder.text = "Enter value";
+        placeholder.color = new Color(0.7f, 0.64f, 0.48f, 0.75f);
+        placeholder.text = "Type here before the lights notice";
 
         GameObject textObject = new GameObject("Text");
         textObject.transform.SetParent(root.transform, false);
@@ -1331,7 +1384,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         text.font = font;
         text.fontSize = 18;
         text.alignment = TextAnchor.MiddleLeft;
-        text.color = Color.white;
+        text.color = new Color(0.98f, 0.93f, 0.78f, 1f);
         text.text = defaultText;
 
         input.textComponent = text;
@@ -1355,10 +1408,11 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         button.onClick.AddListener(callback);
         ColorBlock colors = button.colors;
         colors.normalColor = color;
-        colors.highlightedColor = color * 1.08f;
-        colors.pressedColor = color * 0.92f;
+        colors.highlightedColor = Color.Lerp(color, new Color(1f, 0.85f, 0.25f, 1f), 0.22f);
+        colors.pressedColor = Color.Lerp(color, Color.black, 0.28f);
         button.colors = colors;
-        CreateText(buttonObject.transform, "Label", label, font, 20, new Vector2(0.5f, 0.5f), size - new Vector2(18f, 14f), Color.white);
+        Text labelText = CreateText(buttonObject.transform, "Label", label, font, 20, new Vector2(0.5f, 0.5f), size - new Vector2(18f, 14f), new Color(1f, 0.96f, 0.82f, 1f));
+        AddTextOutline(labelText, new Color(0f, 0f, 0f, 0.65f), new Vector2(1.2f, -1.2f));
         return button;
     }
 

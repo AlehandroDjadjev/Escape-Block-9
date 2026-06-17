@@ -9,6 +9,8 @@ namespace EscapeBlock9.ProcGen.Runtime
     {
         private static readonly Type InventoryType = Type.GetType("SingleItemInventory, Assembly-CSharp");
         private static readonly MethodInfo HasItemIdMethod = InventoryType?.GetMethod("HasItemId", BindingFlags.Public | BindingFlags.Instance);
+        private static readonly Type MultiplayerRuntimeType = Type.GetType("EscapeBlock9MultiplayerRuntime, Assembly-CSharp");
+        private static readonly MethodInfo MultiplayerNotifyPlayerEscapedMethod = MultiplayerRuntimeType?.GetMethod("NotifyPlayerEscaped", BindingFlags.Public | BindingFlags.Static);
         private static readonly Type GameFlowUiControllerType = Type.GetType("GameFlowUIController, Assembly-CSharp");
         private static readonly MethodInfo NotifyPlayerEscapedMethod = GameFlowUiControllerType?.GetMethod("NotifyPlayerEscaped", BindingFlags.Public | BindingFlags.Static);
         private static readonly Type PickupPromptUiType = Type.GetType("PickupPromptUI, Assembly-CSharp");
@@ -87,7 +89,38 @@ namespace EscapeBlock9.ProcGen.Runtime
 
             escaped = true;
             HidePrompt();
-            NotifyPlayerEscapedMethod?.Invoke(null, null);
+            NotifyEscapeCompleted();
+        }
+
+        private static void NotifyEscapeCompleted()
+        {
+            if (TryNotify(MultiplayerNotifyPlayerEscapedMethod))
+            {
+                return;
+            }
+
+            TryNotify(NotifyPlayerEscapedMethod);
+        }
+
+        private static bool TryNotify(MethodInfo method)
+        {
+            if (method == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return method.Invoke(null, null) is bool handled && handled;
+            }
+            catch (TargetInvocationException)
+            {
+                return false;
+            }
+            catch (TargetException)
+            {
+                return false;
+            }
         }
 
         private void ShowProgress(float progress)

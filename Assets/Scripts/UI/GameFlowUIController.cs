@@ -8,33 +8,26 @@ using UnityEngine.InputSystem;
 public class GameFlowUIController : MonoBehaviour
 {
     private static GameFlowUIController instance;
-    private static string pendingEscapeSummary;
 
     private enum FlowState
     {
-        MainMenu = 0,
-        Playing = 1,
-        Paused = 2,
-        GameOver = 3,
-        Victory = 4
+        Playing = 0,
+        Paused = 1,
+        GameOver = 2,
+        Victory = 3
     }
-
-    [Header("Branding")]
-    [SerializeField] private string gameTitle = "Escape Block 9";
 
     [Header("References")]
     [SerializeField] private FirstPersonController firstPersonController;
     [SerializeField] private PlayerItemInteractor itemInteractor;
     [SerializeField] private PlayerEntityInteractor entityInteractor;
 
-    private FlowState currentState = FlowState.MainMenu;
+    private FlowState currentState = FlowState.Playing;
     private Canvas rootCanvas;
-    private GameObject mainMenuPanel;
     private GameObject pausePanel;
     private GameObject gameOverPanel;
     private GameObject victoryPanel;
     private GameObject hudPanel;
-    private Text mainMenuStatusText;
     private Text runTimerText;
     private bool initialized;
     private bool trackRunTimer;
@@ -61,19 +54,13 @@ public class GameFlowUIController : MonoBehaviour
         }
 
         EnsureInitialized();
-        EnterMainMenu();
-        ApplyPendingEscapeSummary();
+        EnterPlaying(true);
     }
 
     public void BeginSingleplayerTestSession()
     {
         enabled = true;
         EnsureInitialized();
-        if (mainMenuStatusText != null)
-        {
-            mainMenuStatusText.text = string.Empty;
-        }
-
         EnterPlaying(true);
     }
 
@@ -146,32 +133,25 @@ public class GameFlowUIController : MonoBehaviour
         rootCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
         rootCanvas.sortingOrder = 5000;
         canvasObj.AddComponent<GraphicRaycaster>();
+        CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
 
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-        mainMenuPanel = CreateFullScreenPanel(canvasObj.transform, "MainMenuPanel", new Color(0f, 0f, 0f, 0.9f));
-        CreateText(mainMenuPanel.transform, "Title", gameTitle, font, 62, new Vector2(0.5f, 0.78f), new Vector2(700f, 100f));
-        CreateButton(mainMenuPanel.transform, "PlayButton", "Play", font, new Vector2(0.5f, 0.56f), OnPlayPressed);
-        CreateButton(mainMenuPanel.transform, "ExitButton", "Exit", font, new Vector2(0.5f, 0.45f), OnExitPressed);
-        mainMenuStatusText = CreateText(mainMenuPanel.transform, "RunStatus", string.Empty, font, 24, new Vector2(0.5f, 0.28f), new Vector2(760f, 40f), new Color(0.82f, 0.9f, 1f, 1f));
+        gameOverPanel = CreateMenuPanel(canvasObj.transform, "GameOverPanel", font, "DETENTION WON", "You were caught. HR has filed you under: educational casualty.");
+        CreateButton(gameOverPanel.transform, "RetryButton", "Try Again", font, new Vector2(0.5f, 0.45f), ReloadScene);
+        CreateButton(gameOverPanel.transform, "GameOverExitButton", "Quit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
 
-        gameOverPanel = CreateFullScreenPanel(canvasObj.transform, "GameOverPanel", new Color(0f, 0f, 0f, 0.9f));
-        CreateText(gameOverPanel.transform, "GameOverTitle", "Game Over", font, 58, new Vector2(0.5f, 0.75f), new Vector2(700f, 100f));
-        CreateButton(gameOverPanel.transform, "RetryButton", "Retry", font, new Vector2(0.5f, 0.56f), ReloadScene);
-        CreateButton(gameOverPanel.transform, "GameOverMainMenuButton", "Main Menu", font, new Vector2(0.5f, 0.45f), ReloadScene);
-        CreateButton(gameOverPanel.transform, "GameOverExitButton", "Exit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
+        victoryPanel = CreateMenuPanel(canvasObj.transform, "VictoryPanel", font, "YOU ESCAPED", "Congratulations. The school is disappointed in your lack of team spirit.");
+        CreateButton(victoryPanel.transform, "VictoryLobbyButton", "Back To Multiplayer", font, new Vector2(0.5f, 0.45f), OnBackToMultiplayerPressed);
+        CreateButton(victoryPanel.transform, "VictoryExitButton", "Quit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
 
-        victoryPanel = CreateFullScreenPanel(canvasObj.transform, "VictoryPanel", new Color(0f, 0f, 0f, 0.9f));
-        CreateText(victoryPanel.transform, "VictoryTitle", "You Escaped", font, 58, new Vector2(0.5f, 0.75f), new Vector2(700f, 100f));
-        CreateButton(victoryPanel.transform, "VictoryRetryButton", "Retry", font, new Vector2(0.5f, 0.56f), ReloadScene);
-        CreateButton(victoryPanel.transform, "VictoryMainMenuButton", "Main Menu", font, new Vector2(0.5f, 0.45f), ReloadScene);
-        CreateButton(victoryPanel.transform, "VictoryExitButton", "Exit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
-
-        pausePanel = CreateFullScreenPanel(canvasObj.transform, "PausePanel", new Color(0f, 0f, 0f, 0.82f));
-        CreateText(pausePanel.transform, "PauseTitle", "Paused", font, 56, new Vector2(0.5f, 0.75f), new Vector2(700f, 100f));
-        CreateButton(pausePanel.transform, "ResumeButton", "Resume", font, new Vector2(0.5f, 0.56f), () => EnterPlaying());
-        CreateButton(pausePanel.transform, "PauseMainMenuButton", "Main Menu", font, new Vector2(0.5f, 0.45f), ReloadScene);
-        CreateButton(pausePanel.transform, "PauseExitButton", "Exit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
+        pausePanel = CreateMenuPanel(canvasObj.transform, "PausePanel", font, "PAUSED", "A short break before the corridor starts making eye contact again.");
+        CreateButton(pausePanel.transform, "ResumeButton", "Resume", font, new Vector2(0.5f, 0.48f), () => EnterPlaying());
+        CreateButton(pausePanel.transform, "PauseRetryButton", "Restart Run", font, new Vector2(0.5f, 0.37f), ReloadScene);
+        CreateButton(pausePanel.transform, "PauseExitButton", "Quit", font, new Vector2(0.5f, 0.26f), OnExitPressed);
 
         hudPanel = new GameObject("HudPanel");
         hudPanel.transform.SetParent(canvasObj.transform, false);
@@ -181,11 +161,26 @@ public class GameFlowUIController : MonoBehaviour
         hudRect.pivot = new Vector2(0f, 1f);
         hudRect.anchoredPosition = new Vector2(18f, -18f);
         hudRect.sizeDelta = new Vector2(280f, 100f);
-        CreateHudButton(hudPanel.transform, "MainMenuHudButton", "Return To Menu", font, new Vector2(100f, -24f), ReloadScene);
         runTimerText = CreateText(hudPanel.transform, "RunTimer", "Time 00:00.0", font, 22, new Vector2(0f, 1f), new Vector2(220f, 32f), Color.white);
         RectTransform timerRect = runTimerText.rectTransform;
         timerRect.pivot = new Vector2(0f, 1f);
-        timerRect.anchoredPosition = new Vector2(0f, -68f);
+        timerRect.anchoredPosition = new Vector2(0f, -10f);
+    }
+
+    private static GameObject CreateMenuPanel(Transform parent, string name, Font font, string title, string subtitle)
+    {
+        GameObject panel = CreateFullScreenPanel(parent, name, new Color(0.015f, 0.012f, 0.012f, 1f));
+        CreateAnchoredPanel(panel.transform, "InkBandTop", new Color(0.28f, 0.015f, 0.018f, 1f), new Vector2(0.5f, 0.88f), new Vector2(0f, 0f), new Vector2(2100f, 150f));
+        CreateAnchoredPanel(panel.transform, "SicklyNotice", new Color(0.88f, 0.72f, 0.16f, 0.95f), new Vector2(0.5f, 0.16f), new Vector2(0f, 0f), new Vector2(980f, 16f));
+        CreateAnchoredPanel(panel.transform, "MainCardShadow", new Color(0f, 0f, 0f, 0.78f), new Vector2(0.5f, 0.52f), new Vector2(14f, -16f), new Vector2(860f, 430f));
+        CreateAnchoredPanel(panel.transform, "MainCard", new Color(0.05f, 0.055f, 0.062f, 1f), new Vector2(0.5f, 0.53f), Vector2.zero, new Vector2(860f, 430f));
+        CreateAnchoredPanel(panel.transform, "CardStripe", new Color(0.58f, 0.025f, 0.035f, 1f), new Vector2(0.5f, 0.69f), Vector2.zero, new Vector2(860f, 18f));
+
+        Text titleText = CreateText(panel.transform, "Title", title, font, 64, new Vector2(0.5f, 0.6f), new Vector2(820f, 96f), new Color(1f, 0.96f, 0.82f, 1f));
+        AddTextOutline(titleText, new Color(0.55f, 0f, 0.02f, 1f), new Vector2(3f, -3f));
+        CreateText(panel.transform, "Subtitle", subtitle, font, 23, new Vector2(0.5f, 0.53f), new Vector2(760f, 70f), new Color(0.78f, 0.84f, 0.82f, 1f));
+        CreateText(panel.transform, "FooterJoke", "Block 9 thanks you for your cooperation. It has misplaced the paperwork.", font, 18, new Vector2(0.5f, 0.18f), new Vector2(920f, 36f), new Color(0.72f, 0.68f, 0.58f, 1f));
+        return panel;
     }
 
     private static GameObject CreateFullScreenPanel(Transform parent, string name, Color color)
@@ -197,6 +192,21 @@ public class GameFlowUIController : MonoBehaviour
         rect.anchorMax = Vector2.one;
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
+        Image image = panel.AddComponent<Image>();
+        image.color = color;
+        return panel;
+    }
+
+    private static GameObject CreateAnchoredPanel(Transform parent, string name, Color color, Vector2 anchor, Vector2 anchoredPosition, Vector2 size)
+    {
+        GameObject panel = new GameObject(name);
+        panel.transform.SetParent(parent, false);
+        RectTransform rect = panel.AddComponent<RectTransform>();
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = size;
         Image image = panel.AddComponent<Image>();
         image.color = color;
         return panel;
@@ -244,6 +254,18 @@ public class GameFlowUIController : MonoBehaviour
         return text;
     }
 
+    private static void AddTextOutline(Text text, Color color, Vector2 distance)
+    {
+        if (text == null)
+        {
+            return;
+        }
+
+        Outline outline = text.gameObject.AddComponent<Outline>();
+        outline.effectColor = color;
+        outline.effectDistance = distance;
+    }
+
     private static void CreateButton(Transform parent, string name, string label, Font font, Vector2 anchor, UnityEngine.Events.UnityAction callback)
     {
         GameObject buttonObj = new GameObject(name);
@@ -255,47 +277,22 @@ public class GameFlowUIController : MonoBehaviour
         rect.sizeDelta = new Vector2(300f, 62f);
 
         Image image = buttonObj.AddComponent<Image>();
-        image.color = new Color(0.12f, 0.12f, 0.12f, 0.94f);
+        image.color = new Color(0.13f, 0.025f, 0.03f, 1f);
 
         Button button = buttonObj.AddComponent<Button>();
         ColorBlock colors = button.colors;
-        colors.normalColor = new Color(0.12f, 0.12f, 0.12f, 0.94f);
-        colors.highlightedColor = new Color(0.2f, 0.2f, 0.2f, 0.98f);
-        colors.pressedColor = new Color(0.28f, 0.28f, 0.28f, 1f);
+        colors.normalColor = new Color(0.13f, 0.025f, 0.03f, 1f);
+        colors.highlightedColor = new Color(0.58f, 0.06f, 0.07f, 1f);
+        colors.pressedColor = new Color(0.78f, 0.46f, 0.08f, 1f);
         button.colors = colors;
         button.onClick.AddListener(callback);
 
-        CreateText(buttonObj.transform, "Label", label, font, 30, new Vector2(0.5f, 0.5f), new Vector2(260f, 44f));
+        Text labelText = CreateText(buttonObj.transform, "Label", label, font, 28, new Vector2(0.5f, 0.5f), new Vector2(260f, 44f), new Color(1f, 0.96f, 0.82f, 1f));
+        AddTextOutline(labelText, new Color(0f, 0f, 0f, 0.7f), new Vector2(1.5f, -1.5f));
     }
 
-    private static void CreateHudButton(Transform parent, string name, string label, Font font, Vector2 anchoredPos, UnityEngine.Events.UnityAction callback)
+    private void SetPanels(bool pause, bool gameOver, bool hud)
     {
-        GameObject buttonObj = new GameObject(name);
-        buttonObj.transform.SetParent(parent, false);
-        RectTransform rect = buttonObj.AddComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 1f);
-        rect.anchoredPosition = anchoredPos;
-        rect.sizeDelta = new Vector2(180f, 46f);
-
-        Image image = buttonObj.AddComponent<Image>();
-        image.color = new Color(0.07f, 0.07f, 0.07f, 0.85f);
-
-        Button button = buttonObj.AddComponent<Button>();
-        button.onClick.AddListener(callback);
-        ColorBlock colors = button.colors;
-        colors.normalColor = image.color;
-        colors.highlightedColor = new Color(0.14f, 0.14f, 0.14f, 0.95f);
-        colors.pressedColor = new Color(0.24f, 0.24f, 0.24f, 0.97f);
-        button.colors = colors;
-
-        CreateText(buttonObj.transform, "Label", label, font, 22, new Vector2(0.5f, 0.5f), new Vector2(150f, 36f));
-    }
-
-    private void SetPanels(bool mainMenu, bool pause, bool gameOver, bool hud)
-    {
-        if (mainMenuPanel != null) mainMenuPanel.SetActive(mainMenu);
         if (pausePanel != null) pausePanel.SetActive(pause);
         if (gameOverPanel != null) gameOverPanel.SetActive(gameOver);
         if (victoryPanel != null) victoryPanel.SetActive(false);
@@ -337,16 +334,6 @@ public class GameFlowUIController : MonoBehaviour
         }
     }
 
-    private void EnterMainMenu()
-    {
-        currentState = FlowState.MainMenu;
-        Time.timeScale = 0f;
-        trackRunTimer = false;
-        SetPanels(mainMenu: true, pause: false, gameOver: false, hud: false);
-        SetGameplayScriptsEnabled(false);
-        SetCursorUiMode(true);
-    }
-
     private void EnterPlaying(bool resetTimer = false)
     {
         if (resetTimer)
@@ -358,7 +345,7 @@ public class GameFlowUIController : MonoBehaviour
         currentState = FlowState.Playing;
         Time.timeScale = 1f;
         trackRunTimer = true;
-        SetPanels(mainMenu: false, pause: false, gameOver: false, hud: true);
+        SetPanels(pause: false, gameOver: false, hud: true);
         SetGameplayScriptsEnabled(true);
         SetCursorUiMode(false);
     }
@@ -373,7 +360,7 @@ public class GameFlowUIController : MonoBehaviour
         currentState = FlowState.Paused;
         Time.timeScale = 0f;
         trackRunTimer = false;
-        SetPanels(mainMenu: false, pause: true, gameOver: false, hud: false);
+        SetPanels(pause: true, gameOver: false, hud: false);
         SetGameplayScriptsEnabled(false);
         SetCursorUiMode(true);
     }
@@ -383,7 +370,7 @@ public class GameFlowUIController : MonoBehaviour
         currentState = FlowState.GameOver;
         Time.timeScale = 0f;
         trackRunTimer = false;
-        SetPanels(mainMenu: false, pause: false, gameOver: true, hud: false);
+        SetPanels(pause: false, gameOver: true, hud: false);
         SetGameplayScriptsEnabled(false);
         SetCursorUiMode(true);
     }
@@ -393,23 +380,13 @@ public class GameFlowUIController : MonoBehaviour
         currentState = FlowState.Victory;
         Time.timeScale = 0f;
         trackRunTimer = false;
-        SetPanels(mainMenu: false, pause: false, gameOver: false, hud: false);
+        SetPanels(pause: false, gameOver: false, hud: false);
         if (victoryPanel != null)
         {
             victoryPanel.SetActive(true);
         }
         SetGameplayScriptsEnabled(false);
         SetCursorUiMode(true);
-    }
-
-    private void OnPlayPressed()
-    {
-        if (mainMenuStatusText != null)
-        {
-            mainMenuStatusText.text = string.Empty;
-        }
-
-        EnterPlaying(true);
     }
 
     private static void OnExitPressed()
@@ -425,20 +402,22 @@ public class GameFlowUIController : MonoBehaviour
 
     private void HandleEscapeSuccess()
     {
-        pendingEscapeSummary = $"Escaped in {FormatElapsedTime(currentRunElapsedSeconds)}";
-        Time.timeScale = 1f;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-    }
-
-    private void ApplyPendingEscapeSummary()
-    {
-        if (mainMenuStatusText == null)
+        if (ReturnToMultiplayerMenu())
         {
             return;
         }
 
-        mainMenuStatusText.text = pendingEscapeSummary ?? string.Empty;
-        pendingEscapeSummary = null;
+        EnterVictory();
+    }
+
+    private static bool ReturnToMultiplayerMenu()
+    {
+        return EscapeBlock9MultiplayerRuntime.NotifyPlayerEscaped();
+    }
+
+    private static void OnBackToMultiplayerPressed()
+    {
+        ReturnToMultiplayerMenu();
     }
 
     private void UpdateRunTimerLabel()

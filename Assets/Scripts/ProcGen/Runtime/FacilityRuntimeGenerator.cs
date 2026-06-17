@@ -62,7 +62,7 @@ namespace EscapeBlock9.ProcGen.Runtime
         [SerializeField] private bool autoTagPlayerAsPlayer = true;
         [SerializeField] private bool enablePortalLinks;
         [SerializeField] private bool logVerbose = true;
-        [SerializeField] private bool showSeedReplayHud = true;
+        [SerializeField] private bool showSeedReplayHud;
 
         [Header("Population")]
         [SerializeField] private FacilityPopulationSettings populationSettings = new FacilityPopulationSettings();
@@ -1583,7 +1583,7 @@ namespace EscapeBlock9.ProcGen.Runtime
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private void OnGUI()
         {
-            if (!showSeedReplayHud)
+            if (!showSeedReplayHud || Application.isPlaying)
             {
                 return;
             }
@@ -1597,23 +1597,6 @@ namespace EscapeBlock9.ProcGen.Runtime
             {
                 GUILayout.Label($"Last Failure: {TruncateForHud(lastFailureSummary)}");
             }
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Random Seed"))
-            {
-                RandomizeSeedAndGenerate();
-            }
-
-            if (GUILayout.Button("Regenerate Seed"))
-            {
-                RegenerateCurrentSeed();
-            }
-
-            if (GUILayout.Button("Copy Seed"))
-            {
-                CopyCurrentSeed();
-            }
-            GUILayout.EndHorizontal();
 
             if (recentFailedSeeds != null && recentFailedSeeds.Count > 0)
             {
