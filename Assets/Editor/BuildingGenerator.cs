@@ -115,6 +115,9 @@ public static class BuildingGenerator
         public Material WaterBottle;
         public Material ColaCan;
         public Material Sandwich;
+        public Material DeskWood;
+        public Material DeskFrame;
+        public Material ChairFrame;
     }
 
     private static Mats CreateMaterials()
@@ -145,6 +148,9 @@ public static class BuildingGenerator
             WaterBottle = MakeMat("Mat_WaterBottle", new Color(0.65f, 0.85f, 0.95f)),
             ColaCan = MakeMat("Mat_ColaCan", new Color(0.78f, 0.1f, 0.12f)),
             Sandwich = MakeMat("Mat_Sandwich", new Color(0.92f, 0.78f, 0.45f)),
+            DeskWood = MakeMat("Mat_DeskWood", new Color(0.88f, 0.75f, 0.55f)),       // light beech
+            DeskFrame = MakeMat("Mat_DeskFrame", new Color(0.08f, 0.08f, 0.08f)),     // black metal
+            ChairFrame = MakeMat("Mat_ChairFrame", new Color(0.18f, 0.45f, 0.78f)),   // blue metal
         };
     }
 
@@ -320,12 +326,9 @@ public static class BuildingGenerator
             new Vector3(0.06f, 1.4f, 1.8f),
             mats.Screen);
 
-        // Desks + chairs
+        // Desks + chairs (school furniture style)
         int cols = 4;
         int rows = 3;
-        float deskW = 0.7f;
-        float deskH = 0.75f;
-        float deskD = 0.5f;
         float marginFront = 2.5f;
         float marginBack = 1f;
         float availX = RoomWidth - marginFront - marginBack;
@@ -340,18 +343,8 @@ public static class BuildingGenerator
             {
                 float deskX = marginBack + spacingX * (c + 0.5f);
                 float deskZ = marginSide + spacingZ * (r + 0.5f);
-                MakeCube($"Desk_{c}_{r}", parent,
-                    new Vector3(deskX, deskH / 2f, deskZ),
-                    new Vector3(deskW, deskH, deskD),
-                    mats.Wood);
-                MakeCube($"Chair_{c}_{r}", parent,
-                    new Vector3(deskX - 0.5f, 0.45f / 2f, deskZ),
-                    new Vector3(0.4f, 0.45f, 0.4f),
-                    mats.Wood);
-                MakeCube($"ChairBack_{c}_{r}", parent,
-                    new Vector3(deskX - 0.7f, 0.7f, deskZ),
-                    new Vector3(0.08f, 0.6f, 0.4f),
-                    mats.Wood);
+                BuildDesk(parent, $"Desk_{c}_{r}", deskX, deskZ, mats);
+                BuildChair(parent, $"Chair_{c}_{r}", deskX - 0.55f, deskZ, mats);
             }
         }
 
@@ -364,6 +357,112 @@ public static class BuildingGenerator
                 new Vector3(1.2f, 0.05f, 0.4f),
                 mats.Screen);
         }
+    }
+
+    // ===================== DESK (school-furniture style) =====================
+    // Cantilever frame: 2 black side frames (vertical posts + horizontal feet) with a wooden top
+    // and a wooden modesty panel between the frames at the back.
+    private static void BuildDesk(Transform parent, string name, float x, float z, Mats mats)
+    {
+        const float deskW = 0.85f;     // along X (left-right)
+        const float deskD = 0.55f;     // along Z (front-back)
+        const float deskH = 0.74f;     // overall height
+        const float topThickness = 0.04f;
+        const float frameThickness = 0.04f;
+        const float frameInset = 0.06f; // how far the side frames sit in from the desk edge
+
+        float topY = deskH - topThickness / 2f;
+
+        // Top slab
+        MakeCube($"{name}_Top", parent,
+            new Vector3(x, topY, z),
+            new Vector3(deskW, topThickness, deskD),
+            mats.DeskWood);
+
+        // Cantilever side frames (left and right)
+        float frameXLeft = x - deskW / 2f + frameInset;
+        float frameXRight = x + deskW / 2f - frameInset;
+        float postH = deskH - topThickness;
+
+        foreach (float fx in new[] { frameXLeft, frameXRight })
+        {
+            // Vertical post
+            MakeCube($"{name}_Post", parent,
+                new Vector3(fx, postH / 2f, z),
+                new Vector3(frameThickness, postH, frameThickness),
+                mats.DeskFrame);
+            // Horizontal foot at floor
+            MakeCube($"{name}_Foot", parent,
+                new Vector3(fx, frameThickness / 2f, z),
+                new Vector3(frameThickness, frameThickness, deskD * 0.85f),
+                mats.DeskFrame);
+            // Top crossbar joining post to underside of top
+            MakeCube($"{name}_Crossbar", parent,
+                new Vector3(fx, deskH - topThickness - frameThickness / 2f, z),
+                new Vector3(frameThickness, frameThickness, deskD * 0.85f),
+                mats.DeskFrame);
+        }
+
+        // Modesty panel at the back (between the two side frames)
+        MakeCube($"{name}_ModestyPanel", parent,
+            new Vector3(x, deskH * 0.55f, z - deskD / 2f + 0.03f),
+            new Vector3(deskW - 2f * (frameInset + 0.02f), deskH * 0.32f, 0.025f),
+            mats.DeskWood);
+    }
+
+    // ===================== CHAIR (school chair style) =====================
+    // Blue metal frame with 4 legs, wooden seat, wooden backrest with 2 back posts.
+    private static void BuildChair(Transform parent, string name, float x, float z, Mats mats)
+    {
+        const float chairW = 0.42f;        // along X
+        const float chairD = 0.42f;        // along Z
+        const float seatH = 0.45f;         // height of seat top
+        const float seatThickness = 0.035f;
+        const float backH = 0.42f;         // height of backrest above seat
+        const float backThickness = 0.04f;
+        const float legThickness = 0.03f;
+
+        float legHalfW = chairW / 2f - legThickness;
+        float legHalfD = chairD / 2f - legThickness;
+
+        // 4 legs (blue metal)
+        var legPositions = new[]
+        {
+            new Vector3(x - legHalfW, seatH / 2f, z - legHalfD),
+            new Vector3(x + legHalfW, seatH / 2f, z - legHalfD),
+            new Vector3(x - legHalfW, seatH / 2f, z + legHalfD),
+            new Vector3(x + legHalfW, seatH / 2f, z + legHalfD),
+        };
+        for (int i = 0; i < legPositions.Length; i++)
+        {
+            MakeCube($"{name}_Leg_{i}", parent,
+                legPositions[i],
+                new Vector3(legThickness, seatH, legThickness),
+                mats.ChairFrame);
+        }
+
+        // Seat (wood)
+        MakeCube($"{name}_Seat", parent,
+            new Vector3(x, seatH + seatThickness / 2f, z),
+            new Vector3(chairW, seatThickness, chairD),
+            mats.DeskWood);
+
+        // Backrest posts (extend up from the back two legs)
+        float backTopY = seatH + backH;
+        MakeCube($"{name}_BackPost_L", parent,
+            new Vector3(x - legHalfW, seatH + backH / 2f, z - legHalfD),
+            new Vector3(legThickness, backH, legThickness),
+            mats.ChairFrame);
+        MakeCube($"{name}_BackPost_R", parent,
+            new Vector3(x + legHalfW, seatH + backH / 2f, z - legHalfD),
+            new Vector3(legThickness, backH, legThickness),
+            mats.ChairFrame);
+
+        // Backrest panel (wood, near top of back posts)
+        MakeCube($"{name}_Backrest", parent,
+            new Vector3(x, backTopY - 0.08f, z - legHalfD + backThickness / 2f),
+            new Vector3(chairW, 0.22f, backThickness),
+            mats.DeskWood);
     }
 
     // ===================== BATHROOM =====================
@@ -781,12 +880,14 @@ public static class BuildingGenerator
         float leftWingCorridorCenterX = leftWingX + RoomDepth + CorridorWidth / 2f;   // 8.5
         float rightWingCorridorCenterX = rightWingX + RoomDepth + CorridorWidth / 2f; // 31.5
 
-        // Stair tower geometry — stays in connector at east end of connector corridor.
+        // Stair geometry — TWO staircases, one near each end of the connector corridor.
         float stairLength = StairSteps * StepRun;
-        float stairBottomX = ConnectorLength - stairLength - 2.5f;        // 32.46
-        float stairTopX = stairBottomX + stairLength;
-        float stairZMin = connectorCorridorCenterZ - StairWidth / 2f;
-        float stairZMax = connectorCorridorCenterZ + StairWidth / 2f;
+        float westStairBottomX = 2.5f;                                    // west staircase starts here
+        float westStairTopX = westStairBottomX + stairLength;             // ~7.54
+        float eastStairBottomX = ConnectorLength - stairLength - 2.5f;    // 32.46
+        float eastStairTopX = eastStairBottomX + stairLength;             // ~37.5
+        float stairZMin = connectorCorridorCenterZ - StairWidth / 2f;     // 7.9
+        float stairZMax = connectorCorridorCenterZ + StairWidth / 2f;     // 9.1
 
         for (int f = 0; f < Floors; f++)
         {
@@ -795,7 +896,7 @@ public static class BuildingGenerator
             floorParent.transform.localPosition = new Vector3(0, f * floorVerticalSize, 0);
 
             // =========== TOP CONNECTOR ===========
-            // Connector corridor floor/ceiling — solid on floor 0, donut on floor 1 (stair hole).
+            // Connector corridor floor/ceiling — solid on floor 0, double-donut on floor 1 (TWO stair holes).
             if (f == 0)
             {
                 MakeCube("ConnectorCorridorFloor", floorParent.transform,
@@ -803,13 +904,19 @@ public static class BuildingGenerator
                     new Vector3(ConnectorLength, FloorThickness, CorridorWidth),
                     mats.Floor);
 
-                BuildDonutSlab(floorParent.transform, "ConnectorCorridorCeiling", RoomHeight + FloorThickness / 2f,
-                    ConnectorLength, stairBottomX, stairTopX, stairZMin, stairZMax, connectorCorridorCenterZ, mats.Ceiling);
+                BuildDoubleHoleSlab(floorParent.transform, "ConnectorCorridorCeiling", RoomHeight + FloorThickness / 2f,
+                    ConnectorLength,
+                    westStairBottomX, westStairTopX,
+                    eastStairBottomX, eastStairTopX,
+                    stairZMin, stairZMax, connectorCorridorCenterZ, mats.Ceiling);
             }
             else
             {
-                BuildDonutSlab(floorParent.transform, "ConnectorCorridorFloor", -FloorThickness / 2f,
-                    ConnectorLength, stairBottomX, stairTopX, stairZMin, stairZMax, connectorCorridorCenterZ, mats.Floor);
+                BuildDoubleHoleSlab(floorParent.transform, "ConnectorCorridorFloor", -FloorThickness / 2f,
+                    ConnectorLength,
+                    westStairBottomX, westStairTopX,
+                    eastStairBottomX, eastStairTopX,
+                    stairZMin, stairZMax, connectorCorridorCenterZ, mats.Floor);
 
                 MakeCube("ConnectorCorridorCeiling", floorParent.transform,
                     new Vector3(ConnectorLength / 2f, RoomHeight + FloorThickness / 2f, connectorCorridorCenterZ),
@@ -891,11 +998,16 @@ public static class BuildingGenerator
             new Vector3(WingWidth + 2 * WallThickness, FloorThickness, WingLength + 2 * WallThickness),
             mats.Roof);
 
-        // =========== STAIRS — at east end of connector corridor ===========
-        var stairs = (GameObject)PrefabUtility.InstantiatePrefab(stairsPrefab, root.transform);
-        stairs.name = "Stairs";
-        stairs.transform.localRotation = Quaternion.Euler(0, 90f, 0);
-        stairs.transform.localPosition = new Vector3(stairBottomX, 0, connectorCorridorCenterZ + StairWidth / 2f);
+        // =========== STAIRS — TWO staircases, one at each end of the connector corridor ===========
+        var westStairs = (GameObject)PrefabUtility.InstantiatePrefab(stairsPrefab, root.transform);
+        westStairs.name = "Stairs_West";
+        westStairs.transform.localRotation = Quaternion.Euler(0, 90f, 0);
+        westStairs.transform.localPosition = new Vector3(westStairBottomX, 0, connectorCorridorCenterZ + StairWidth / 2f);
+
+        var eastStairs = (GameObject)PrefabUtility.InstantiatePrefab(stairsPrefab, root.transform);
+        eastStairs.name = "Stairs_East";
+        eastStairs.transform.localRotation = Quaternion.Euler(0, 90f, 0);
+        eastStairs.transform.localPosition = new Vector3(eastStairBottomX, 0, connectorCorridorCenterZ + StairWidth / 2f);
 
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, BuildingPrefabPath);
         Object.DestroyImmediate(root);
@@ -1040,6 +1152,65 @@ public static class BuildingGenerator
             door.transform.localPosition = new Vector3(wallX, 0, doorLeftZ);
             door.transform.localRotation = Quaternion.identity;
             door.transform.localScale = new Vector3(1, 1, doorOpeningWidth);
+        }
+    }
+
+    /// <summary>
+    /// Builds the corridor floor (or ceiling) with TWO stair holes — north strip, south strip, and 3 center segments around the holes.
+    /// </summary>
+    private static void BuildDoubleHoleSlab(Transform parent, string baseName, float yCenter,
+        float buildingLength,
+        float hole1WestX, float hole1EastX,
+        float hole2WestX, float hole2EastX,
+        float holeZMin, float holeZMax,
+        float corridorCenterZ, Material material)
+    {
+        float corridorNorthEdgeZ = corridorCenterZ - CorridorWidth / 2f;
+        float corridorSouthEdgeZ = corridorCenterZ + CorridorWidth / 2f;
+
+        // North strip — full length of corridor, on the north side of both holes.
+        float northStripZ = (corridorNorthEdgeZ + holeZMin) / 2f;
+        float northStripDepth = holeZMin - corridorNorthEdgeZ;
+        MakeCube($"{baseName}_North", parent,
+            new Vector3(buildingLength / 2f, yCenter, northStripZ),
+            new Vector3(buildingLength, FloorThickness, northStripDepth),
+            material);
+
+        // South strip — full length of corridor, on the south side of both holes.
+        float southStripZ = (holeZMax + corridorSouthEdgeZ) / 2f;
+        float southStripDepth = corridorSouthEdgeZ - holeZMax;
+        MakeCube($"{baseName}_South", parent,
+            new Vector3(buildingLength / 2f, yCenter, southStripZ),
+            new Vector3(buildingLength, FloorThickness, southStripDepth),
+            material);
+
+        // Center band has up to 3 segments: west of hole1, between holes, east of hole2.
+        float centerDepth = holeZMax - holeZMin;
+
+        if (hole1WestX > 0f)
+        {
+            MakeCube($"{baseName}_Center_West", parent,
+                new Vector3(hole1WestX / 2f, yCenter, corridorCenterZ),
+                new Vector3(hole1WestX, FloorThickness, centerDepth),
+                material);
+        }
+
+        if (hole2WestX > hole1EastX)
+        {
+            float middleLen = hole2WestX - hole1EastX;
+            MakeCube($"{baseName}_Center_Middle", parent,
+                new Vector3(hole1EastX + middleLen / 2f, yCenter, corridorCenterZ),
+                new Vector3(middleLen, FloorThickness, centerDepth),
+                material);
+        }
+
+        if (hole2EastX < buildingLength)
+        {
+            float eastLen = buildingLength - hole2EastX;
+            MakeCube($"{baseName}_Center_East", parent,
+                new Vector3(hole2EastX + eastLen / 2f, yCenter, corridorCenterZ),
+                new Vector3(eastLen, FloorThickness, centerDepth),
+                material);
         }
     }
 
