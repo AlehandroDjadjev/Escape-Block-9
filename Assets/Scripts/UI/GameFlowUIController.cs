@@ -140,15 +140,15 @@ public class GameFlowUIController : MonoBehaviour
 
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-        gameOverPanel = CreateMenuPanel(canvasObj.transform, "GameOverPanel", font, "DETENTION WON", "You were caught. HR has filed you under: educational casualty.");
+        gameOverPanel = CreateMenuPanel(canvasObj.transform, "GameOverPanel", font, "DETENTION WON");
         CreateButton(gameOverPanel.transform, "RetryButton", "Try Again", font, new Vector2(0.5f, 0.45f), ReloadScene);
         CreateButton(gameOverPanel.transform, "GameOverExitButton", "Quit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
 
-        victoryPanel = CreateMenuPanel(canvasObj.transform, "VictoryPanel", font, "YOU ESCAPED", "Congratulations. The school is disappointed in your lack of team spirit.");
+        victoryPanel = CreateMenuPanel(canvasObj.transform, "VictoryPanel", font, "YOU ESCAPED");
         CreateButton(victoryPanel.transform, "VictoryLobbyButton", "Back To Multiplayer", font, new Vector2(0.5f, 0.45f), OnBackToMultiplayerPressed);
         CreateButton(victoryPanel.transform, "VictoryExitButton", "Quit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
 
-        pausePanel = CreateMenuPanel(canvasObj.transform, "PausePanel", font, "PAUSED", "A short break before the corridor starts making eye contact again.");
+        pausePanel = CreateMenuPanel(canvasObj.transform, "PausePanel", font, "PAUSED");
         CreateButton(pausePanel.transform, "ResumeButton", "Resume", font, new Vector2(0.5f, 0.48f), () => EnterPlaying());
         CreateButton(pausePanel.transform, "PauseRetryButton", "Restart Run", font, new Vector2(0.5f, 0.37f), ReloadScene);
         CreateButton(pausePanel.transform, "PauseExitButton", "Quit", font, new Vector2(0.5f, 0.26f), OnExitPressed);
@@ -167,7 +167,7 @@ public class GameFlowUIController : MonoBehaviour
         timerRect.anchoredPosition = new Vector2(0f, -10f);
     }
 
-    private static GameObject CreateMenuPanel(Transform parent, string name, Font font, string title, string subtitle)
+    private static GameObject CreateMenuPanel(Transform parent, string name, Font font, string title)
     {
         GameObject panel = CreateFullScreenPanel(parent, name, new Color(0.015f, 0.012f, 0.012f, 1f));
         CreateAnchoredPanel(panel.transform, "InkBandTop", new Color(0.28f, 0.015f, 0.018f, 1f), new Vector2(0.5f, 0.88f), new Vector2(0f, 0f), new Vector2(2100f, 150f));
@@ -178,8 +178,6 @@ public class GameFlowUIController : MonoBehaviour
 
         Text titleText = CreateText(panel.transform, "Title", title, font, 64, new Vector2(0.5f, 0.6f), new Vector2(820f, 96f), new Color(1f, 0.96f, 0.82f, 1f));
         AddTextOutline(titleText, new Color(0.55f, 0f, 0.02f, 1f), new Vector2(3f, -3f));
-        CreateText(panel.transform, "Subtitle", subtitle, font, 23, new Vector2(0.5f, 0.53f), new Vector2(760f, 70f), new Color(0.78f, 0.84f, 0.82f, 1f));
-        CreateText(panel.transform, "FooterJoke", "Block 9 thanks you for your cooperation. It has misplaced the paperwork.", font, 18, new Vector2(0.5f, 0.18f), new Vector2(920f, 36f), new Color(0.72f, 0.68f, 0.58f, 1f));
         return panel;
     }
 

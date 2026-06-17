@@ -193,10 +193,9 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         Color gold = new Color(0.86f, 0.66f, 0.16f, 1f);
 
         authPanel = CreateFullScreenPanel(rootCanvas.transform, "AuthPanel", ink);
-        CreateMenuDecor(authPanel.transform, font, "AUTHORIZED PERSONNEL ONLY");
+        CreateMenuDecor(authPanel.transform);
         Text authTitle = CreateText(authPanel.transform, "AuthTitle", "ESCAPE BLOCK 9", font, 68, new Vector2(0.5f, 0.82f), new Vector2(980f, 92f), new Color(1f, 0.95f, 0.78f, 1f));
         AddTextOutline(authTitle, new Color(0.55f, 0f, 0.02f, 1f), new Vector2(3f, -3f));
-        CreateText(authPanel.transform, "AuthSubtitle", "Co-op horror for people who read the evacuation plan and still got lost.", font, 24, new Vector2(0.5f, 0.74f), new Vector2(980f, 44f), new Color(0.78f, 0.84f, 0.78f, 1f));
         GameObject authCard = CreatePanel(authPanel.transform, "AuthCard", panel, new Vector2(0.5f, 0.47f), new Vector2(780f, 370f));
         CreateText(authCard.transform, "ServerLabel", "Backend Address", font, 21, new Vector2(0.5f, 0.8f), new Vector2(640f, 34f), new Color(0.88f, 0.8f, 0.58f, 1f));
         serverUrlInput = CreateInputField(authCard.transform, "ServerInput", font, new Vector2(0.5f, 0.63f), new Vector2(640f, 54f), api.BaseHttpUrl);
@@ -204,7 +203,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         authStatusText = CreateText(authCard.transform, "AuthStatus", string.Empty, font, 18, new Vector2(0.5f, 0.16f), new Vector2(660f, 76f), new Color(0.9f, 0.9f, 0.82f, 1f));
 
         lobbyPanel = CreateFullScreenPanel(rootCanvas.transform, "LobbyPanel", ink);
-        CreateMenuDecor(lobbyPanel.transform, font, "LOBBY DESK - ONE FORM PER PANIC");
+        CreateMenuDecor(lobbyPanel.transform);
         Text lobbyTitle = CreateText(lobbyPanel.transform, "LobbyTitle", "MULTIPLAYER", font, 60, new Vector2(0.5f, 0.88f), new Vector2(780f, 78f), new Color(1f, 0.95f, 0.78f, 1f));
         AddTextOutline(lobbyTitle, new Color(0.55f, 0f, 0.02f, 1f), new Vector2(3f, -3f));
         GameObject lobbyCard = CreatePanel(lobbyPanel.transform, "LobbyCard", panel, new Vector2(0.5f, 0.5f), new Vector2(900f, 560f));
@@ -1292,14 +1291,11 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         return panel;
     }
 
-    private static void CreateMenuDecor(Transform parent, Font font, string bannerText)
+    private static void CreateMenuDecor(Transform parent)
     {
         CreatePanel(parent, "TopBloodBand", new Color(0.27f, 0.015f, 0.018f, 1f), new Vector2(0.5f, 0.93f), new Vector2(2200f, 150f));
         CreatePanel(parent, "WarningStripe", new Color(0.86f, 0.66f, 0.16f, 0.95f), new Vector2(0.5f, 0.68f), new Vector2(1040f, 16f));
         CreatePanel(parent, "LowInkBand", new Color(0.025f, 0.028f, 0.028f, 1f), new Vector2(0.5f, 0.08f), new Vector2(2200f, 150f));
-        Text banner = CreateText(parent, "BannerText", bannerText, font, 18, new Vector2(0.5f, 0.94f), new Vector2(900f, 34f), new Color(1f, 0.89f, 0.55f, 1f));
-        AddTextOutline(banner, new Color(0f, 0f, 0f, 0.75f), new Vector2(1.5f, -1.5f));
-        CreateText(parent, "MenuFooter", "Block 9 guarantees two exits: one legal, one theoretical.", font, 18, new Vector2(0.5f, 0.08f), new Vector2(900f, 34f), new Color(0.68f, 0.66f, 0.56f, 1f));
     }
 
     private static GameObject CreatePanel(Transform parent, string name, Color color, Vector2 anchor, Vector2 size)

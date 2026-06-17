@@ -231,6 +231,7 @@ namespace EscapeBlock9.ProcGen.Runtime
                 ValidateEnemySpawns(populationReport, errors);
                 CacheMultiplayerSpawnPoints(layout, instanceTiles);
                 PlacePlayer(populationReport, graph, layout, instanceTiles, errors);
+                FacilityHorrorVisualPass.Apply(generatedRoot.transform, instanceTiles, layout.Seed);
 
                 float durationSeconds = Time.realtimeSinceStartup - startTimestamp;
                 lastGenerationDurationSeconds = durationSeconds;
