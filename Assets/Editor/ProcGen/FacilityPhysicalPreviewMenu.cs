@@ -93,7 +93,7 @@ namespace EscapeBlock9.ProcGen.Editor
                 return false;
             }
 
-            if (!TryBuildMapLikeRoomLayout(catalog, Mathf.Clamp(roomCount, 1, 12), seed, out FacilityGraph graph, out ResolvedFacilityLayout layout, out diagnostics))
+            if (!FacilityMapLikeLayoutBuilder.TryBuild(catalog, Mathf.Clamp(roomCount, 1, 12), seed, out FacilityGraph graph, out ResolvedFacilityLayout layout, out diagnostics))
             {
                 return false;
             }
@@ -181,6 +181,8 @@ namespace EscapeBlock9.ProcGen.Editor
             }
 
             GameObject root = new GameObject(PreviewRootName);
+            // Preview hierarchies are editor-only diagnostics and should never ship in player builds.
+            root.tag = "EditorOnly";
             Undo.RegisterCreatedObjectUndo(root, undoName);
             var instanceTiles = new Dictionary<int, EscapeBlock9.ProcGen.Authoring.Tile>();
 
@@ -1662,7 +1664,7 @@ namespace EscapeBlock9.ProcGen.Editor
     public sealed class FacilityRandomPreviewWindow : EditorWindow
     {
         private string lastSeedText = "No random preview generated yet.";
-        private int connectedRoomCount = 4;
+        private int connectedRoomCount = 12;
         private Vector2 scroll;
 
         public static void Open()

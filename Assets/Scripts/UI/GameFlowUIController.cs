@@ -7,12 +7,16 @@ using UnityEngine.InputSystem;
 
 public class GameFlowUIController : MonoBehaviour
 {
+    private static GameFlowUIController instance;
+    private static string pendingEscapeSummary;
+
     private enum FlowState
     {
         MainMenu = 0,
         Playing = 1,
         Paused = 2,
-        GameOver = 3
+        GameOver = 3,
+        Victory = 4
     }
 
     [Header("Branding")]
@@ -28,10 +32,60 @@ public class GameFlowUIController : MonoBehaviour
     private GameObject mainMenuPanel;
     private GameObject pausePanel;
     private GameObject gameOverPanel;
+    private GameObject victoryPanel;
     private GameObject hudPanel;
+    private Text mainMenuStatusText;
+    private Text runTimerText;
+    private bool initialized;
+    private bool trackRunTimer;
+    private float currentRunElapsedSeconds;
+
+    public static bool NotifyPlayerEscaped()
+    {
+        if (instance == null)
+        {
+            Debug.Log("Player escaped.");
+            return false;
+        }
+
+        instance.HandleEscapeSuccess();
+        return true;
+    }
 
     private void Awake()
     {
+        if (EscapeBlock9MultiplayerRuntime.ShouldSuppressBuiltInUi)
+        {
+            enabled = false;
+            return;
+        }
+
+        EnsureInitialized();
+        EnterMainMenu();
+        ApplyPendingEscapeSummary();
+    }
+
+    public void BeginSingleplayerTestSession()
+    {
+        enabled = true;
+        EnsureInitialized();
+        if (mainMenuStatusText != null)
+        {
+            mainMenuStatusText.text = string.Empty;
+        }
+
+        EnterPlaying(true);
+    }
+
+    private void EnsureInitialized()
+    {
+        if (initialized)
+        {
+            return;
+        }
+
+        instance = this;
+
         if (firstPersonController == null)
         {
             firstPersonController = GetComponent<FirstPersonController>();
@@ -49,7 +103,7 @@ public class GameFlowUIController : MonoBehaviour
 
         BuildUi();
         EnsureEventSystem();
-        EnterMainMenu();
+        initialized = true;
     }
 
     private void OnEnable()
@@ -99,6 +153,7 @@ public class GameFlowUIController : MonoBehaviour
         CreateText(mainMenuPanel.transform, "Title", gameTitle, font, 62, new Vector2(0.5f, 0.78f), new Vector2(700f, 100f));
         CreateButton(mainMenuPanel.transform, "PlayButton", "Play", font, new Vector2(0.5f, 0.56f), OnPlayPressed);
         CreateButton(mainMenuPanel.transform, "ExitButton", "Exit", font, new Vector2(0.5f, 0.45f), OnExitPressed);
+        mainMenuStatusText = CreateText(mainMenuPanel.transform, "RunStatus", string.Empty, font, 24, new Vector2(0.5f, 0.28f), new Vector2(760f, 40f), new Color(0.82f, 0.9f, 1f, 1f));
 
         gameOverPanel = CreateFullScreenPanel(canvasObj.transform, "GameOverPanel", new Color(0f, 0f, 0f, 0.9f));
         CreateText(gameOverPanel.transform, "GameOverTitle", "Game Over", font, 58, new Vector2(0.5f, 0.75f), new Vector2(700f, 100f));
@@ -106,9 +161,15 @@ public class GameFlowUIController : MonoBehaviour
         CreateButton(gameOverPanel.transform, "GameOverMainMenuButton", "Main Menu", font, new Vector2(0.5f, 0.45f), ReloadScene);
         CreateButton(gameOverPanel.transform, "GameOverExitButton", "Exit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
 
+        victoryPanel = CreateFullScreenPanel(canvasObj.transform, "VictoryPanel", new Color(0f, 0f, 0f, 0.9f));
+        CreateText(victoryPanel.transform, "VictoryTitle", "You Escaped", font, 58, new Vector2(0.5f, 0.75f), new Vector2(700f, 100f));
+        CreateButton(victoryPanel.transform, "VictoryRetryButton", "Retry", font, new Vector2(0.5f, 0.56f), ReloadScene);
+        CreateButton(victoryPanel.transform, "VictoryMainMenuButton", "Main Menu", font, new Vector2(0.5f, 0.45f), ReloadScene);
+        CreateButton(victoryPanel.transform, "VictoryExitButton", "Exit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
+
         pausePanel = CreateFullScreenPanel(canvasObj.transform, "PausePanel", new Color(0f, 0f, 0f, 0.82f));
         CreateText(pausePanel.transform, "PauseTitle", "Paused", font, 56, new Vector2(0.5f, 0.75f), new Vector2(700f, 100f));
-        CreateButton(pausePanel.transform, "ResumeButton", "Resume", font, new Vector2(0.5f, 0.56f), EnterPlaying);
+        CreateButton(pausePanel.transform, "ResumeButton", "Resume", font, new Vector2(0.5f, 0.56f), () => EnterPlaying());
         CreateButton(pausePanel.transform, "PauseMainMenuButton", "Main Menu", font, new Vector2(0.5f, 0.45f), ReloadScene);
         CreateButton(pausePanel.transform, "PauseExitButton", "Exit", font, new Vector2(0.5f, 0.34f), OnExitPressed);
 
@@ -119,8 +180,12 @@ public class GameFlowUIController : MonoBehaviour
         hudRect.anchorMax = new Vector2(0f, 1f);
         hudRect.pivot = new Vector2(0f, 1f);
         hudRect.anchoredPosition = new Vector2(18f, -18f);
-        hudRect.sizeDelta = new Vector2(220f, 60f);
+        hudRect.sizeDelta = new Vector2(280f, 100f);
         CreateHudButton(hudPanel.transform, "MainMenuHudButton", "Return To Menu", font, new Vector2(100f, -24f), ReloadScene);
+        runTimerText = CreateText(hudPanel.transform, "RunTimer", "Time 00:00.0", font, 22, new Vector2(0f, 1f), new Vector2(220f, 32f), Color.white);
+        RectTransform timerRect = runTimerText.rectTransform;
+        timerRect.pivot = new Vector2(0f, 1f);
+        timerRect.anchoredPosition = new Vector2(0f, -68f);
     }
 
     private static GameObject CreateFullScreenPanel(Transform parent, string name, Color color)
@@ -155,7 +220,12 @@ public class GameFlowUIController : MonoBehaviour
         eventSystemObject.AddComponent<InputSystemUIInputModule>();
     }
 
-    private static void CreateText(Transform parent, string name, string value, Font font, int size, Vector2 anchor, Vector2 dims)
+    private static Text CreateText(Transform parent, string name, string value, Font font, int size, Vector2 anchor, Vector2 dims)
+    {
+        return CreateText(parent, name, value, font, size, anchor, dims, Color.white);
+    }
+
+    private static Text CreateText(Transform parent, string name, string value, Font font, int size, Vector2 anchor, Vector2 dims, Color color)
     {
         GameObject textObj = new GameObject(name);
         textObj.transform.SetParent(parent, false);
@@ -169,8 +239,9 @@ public class GameFlowUIController : MonoBehaviour
         text.font = font;
         text.fontSize = size;
         text.alignment = TextAnchor.MiddleCenter;
-        text.color = Color.white;
+        text.color = color;
         text.text = value;
+        return text;
     }
 
     private static void CreateButton(Transform parent, string name, string label, Font font, Vector2 anchor, UnityEngine.Events.UnityAction callback)
@@ -227,6 +298,7 @@ public class GameFlowUIController : MonoBehaviour
         if (mainMenuPanel != null) mainMenuPanel.SetActive(mainMenu);
         if (pausePanel != null) pausePanel.SetActive(pause);
         if (gameOverPanel != null) gameOverPanel.SetActive(gameOver);
+        if (victoryPanel != null) victoryPanel.SetActive(false);
         if (hudPanel != null) hudPanel.SetActive(hud);
     }
 
@@ -269,15 +341,23 @@ public class GameFlowUIController : MonoBehaviour
     {
         currentState = FlowState.MainMenu;
         Time.timeScale = 0f;
+        trackRunTimer = false;
         SetPanels(mainMenu: true, pause: false, gameOver: false, hud: false);
         SetGameplayScriptsEnabled(false);
         SetCursorUiMode(true);
     }
 
-    private void EnterPlaying()
+    private void EnterPlaying(bool resetTimer = false)
     {
+        if (resetTimer)
+        {
+            currentRunElapsedSeconds = 0f;
+            UpdateRunTimerLabel();
+        }
+
         currentState = FlowState.Playing;
         Time.timeScale = 1f;
+        trackRunTimer = true;
         SetPanels(mainMenu: false, pause: false, gameOver: false, hud: true);
         SetGameplayScriptsEnabled(true);
         SetCursorUiMode(false);
@@ -292,6 +372,7 @@ public class GameFlowUIController : MonoBehaviour
 
         currentState = FlowState.Paused;
         Time.timeScale = 0f;
+        trackRunTimer = false;
         SetPanels(mainMenu: false, pause: true, gameOver: false, hud: false);
         SetGameplayScriptsEnabled(false);
         SetCursorUiMode(true);
@@ -301,14 +382,34 @@ public class GameFlowUIController : MonoBehaviour
     {
         currentState = FlowState.GameOver;
         Time.timeScale = 0f;
+        trackRunTimer = false;
         SetPanels(mainMenu: false, pause: false, gameOver: true, hud: false);
+        SetGameplayScriptsEnabled(false);
+        SetCursorUiMode(true);
+    }
+
+    private void EnterVictory()
+    {
+        currentState = FlowState.Victory;
+        Time.timeScale = 0f;
+        trackRunTimer = false;
+        SetPanels(mainMenu: false, pause: false, gameOver: false, hud: false);
+        if (victoryPanel != null)
+        {
+            victoryPanel.SetActive(true);
+        }
         SetGameplayScriptsEnabled(false);
         SetCursorUiMode(true);
     }
 
     private void OnPlayPressed()
     {
-        EnterPlaying();
+        if (mainMenuStatusText != null)
+        {
+            mainMenuStatusText.text = string.Empty;
+        }
+
+        EnterPlaying(true);
     }
 
     private static void OnExitPressed()
@@ -320,5 +421,57 @@ public class GameFlowUIController : MonoBehaviour
     {
         Time.timeScale = 1f;
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    private void HandleEscapeSuccess()
+    {
+        pendingEscapeSummary = $"Escaped in {FormatElapsedTime(currentRunElapsedSeconds)}";
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    private void ApplyPendingEscapeSummary()
+    {
+        if (mainMenuStatusText == null)
+        {
+            return;
+        }
+
+        mainMenuStatusText.text = pendingEscapeSummary ?? string.Empty;
+        pendingEscapeSummary = null;
+    }
+
+    private void UpdateRunTimerLabel()
+    {
+        if (runTimerText != null)
+        {
+            runTimerText.text = $"Time {FormatElapsedTime(currentRunElapsedSeconds)}";
+        }
+    }
+
+    private static string FormatElapsedTime(float seconds)
+    {
+        int minutes = Mathf.FloorToInt(seconds / 60f);
+        float remainingSeconds = seconds - (minutes * 60f);
+        return $"{minutes:00}:{remainingSeconds:00.0}";
+    }
+
+    private void OnDestroy()
+    {
+        if (instance == this)
+        {
+            instance = null;
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (!trackRunTimer || currentState != FlowState.Playing)
+        {
+            return;
+        }
+
+        currentRunElapsedSeconds += Time.unscaledDeltaTime;
+        UpdateRunTimerLabel();
     }
 }

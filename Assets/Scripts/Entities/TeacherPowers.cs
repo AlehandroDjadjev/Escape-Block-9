@@ -116,7 +116,7 @@ public abstract class TeacherPower : MonoBehaviour
 // ==========================================================================
 // 1. MEDUSA STARE — Frenski.  Freezes player on eye contact.
 // ==========================================================================
-public class MedusaStarePower : TeacherPower
+public partial class MedusaStarePower : TeacherPower
 {
     [Header("Medusa Stare")]
     [SerializeField] private float lookConeAngle = 28f;
@@ -175,7 +175,7 @@ public class MedusaStarePower : TeacherPower
 // 2. WALL CLIMB — Tancheto.  Allow vertical movement: when player goes up
 //    a floor, this teacher teleports to floor 1 to follow.
 // ==========================================================================
-public class WallClimbPower : TeacherPower
+public partial class WallClimbPower : TeacherPower
 {
     [Header("Wall Climb")]
     [SerializeField] private float verticalReach = 4f;
@@ -210,7 +210,7 @@ public class WallClimbPower : TeacherPower
 // ==========================================================================
 // 3. TEACHER SPRINT — Ivazaharieva.  Periodic 4-second speed burst.
 // ==========================================================================
-public class TeacherSprintPower : TeacherPower
+public partial class TeacherSprintPower : TeacherPower
 {
     [Header("Teacher Sprint")]
     [SerializeField] private float sprintMultiplier = 1.5f;
@@ -249,7 +249,7 @@ public class TeacherSprintPower : TeacherPower
 // 4. CAMERA HIJACK — Milaneikova.  If player is in sight of any object tagged
 //    "SecurityCamera", this teacher gets the player's position.
 // ==========================================================================
-public class CameraHijackPower : TeacherPower
+public partial class CameraHijackPower : TeacherPower
 {
     [Header("Camera Hijack")]
     [SerializeField] private string cameraTag = "SecurityCamera";
@@ -340,7 +340,7 @@ public class CameraHijackPower : TeacherPower
 // ==========================================================================
 // 5. RULER WHIP — Bojkata.  4m forward-cone melee that damages the player.
 // ==========================================================================
-public class RulerWhipPower : TeacherPower
+public partial class RulerWhipPower : TeacherPower
 {
     [Header("Ruler Whip")]
     [SerializeField] private float reach = 3f;
@@ -422,7 +422,7 @@ public class RulerWhipPower : TeacherPower
 // ==========================================================================
 // 6. CHALK STORM — Ivanzaprqnov.  Throws 5 chalk projectiles at the player.
 // ==========================================================================
-public class ChalkStormPower : TeacherPower
+public partial class ChalkStormPower : TeacherPower
 {
     [Header("Chalk Storm")]
     [SerializeField] private int chalkCount = 3;
@@ -489,7 +489,7 @@ public class ChalkStormPower : TeacherPower
 // 7. DETENTION TRAP — Milen Spasov.  Periodically drops a glowing red trap
 //    zone on the floor that slows the player on contact.
 // ==========================================================================
-public class DetentionTrapPower : TeacherPower
+public partial class DetentionTrapPower : TeacherPower
 {
     [Header("Detention Trap")]
     [SerializeField] private float trapRadius = 1.0f;
@@ -539,7 +539,7 @@ public class DetentionTrapZone : MonoBehaviour
 // 8. DOPPELGANGER — Basheva.  Spawns a visual copy of herself at a nearby
 //    location to confuse the player.
 // ==========================================================================
-public class DoppelgangerPower : TeacherPower
+public partial class DoppelgangerPower : TeacherPower
 {
     [Header("Doppelganger")]
     [SerializeField] private float spawnRange = 12f;
@@ -574,7 +574,7 @@ public class DoppelgangerPower : TeacherPower
 // 9. SEALED BUILDING — Direktorka.  Once per match, locks every door for
 //    30 seconds. Forces players to survive the lockdown.
 // ==========================================================================
-public class SealedBuildingPower : TeacherPower
+public partial class SealedBuildingPower : TeacherPower
 {
     [Header("Sealed Building")]
     [SerializeField] private float lockdownDuration = 12f;
@@ -620,7 +620,7 @@ public class SealedBuildingPower : TeacherPower
 // 10. X-RAY VISION — Hristov.  Always knows the player's position, regardless
 //     of walls. Continuously updates a "lastSeenPosition" for AI to chase.
 // ==========================================================================
-public class XRayVisionPower : TeacherPower
+public partial class XRayVisionPower : TeacherPower
 {
     [Header("X-Ray Vision")]
     [SerializeField] private float sightRadius = 12f;
