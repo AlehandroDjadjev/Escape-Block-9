@@ -381,17 +381,20 @@ namespace EscapeBlock9.ProcGen.Editor
             TileDefinition start = FindDefinition(catalog, "start_exit_lobby");
             TileDefinition junction = FindDefinition(catalog, "corridor_cross_junction_3m");
             TileDefinition straight = FindDefinition(catalog, "corridor_straight_8m");
+            TileDefinition deadEnd = FindDefinition(catalog, "corridor_dead_end");
             List<TileDefinition> rooms = FindRoomDefinitions(catalog);
 
-            if (start == null || junction == null || straight == null || rooms.Count == 0)
+            if (start == null || junction == null || straight == null || deadEnd == null || rooms.Count == 0)
             {
-                diagnostics = "Map-like layout requires start_exit_lobby, corridor_cross_junction_3m, corridor_straight_8m, and at least one room/special room definition.";
+                diagnostics = "Map-like layout requires start_exit_lobby, corridor_cross_junction_3m, corridor_straight_8m, corridor_dead_end, and at least one room/special room definition.";
                 return false;
             }
 
             var random = new System.Random(seed);
             var settings = new FacilityPlacementSettings();
             var tiles = new List<PlacedTile>();
+            var manualConnections = new List<PlacedDoorwayConnection>();
+            var manualEdgeIds = new HashSet<int>();
             var placedByNode = new Dictionary<int, PlacedTile>();
             var definitionByNode = new Dictionary<int, TileDefinition>();
             var roomUseCounts = new Dictionary<string, int>();
@@ -451,16 +454,18 @@ namespace EscapeBlock9.ProcGen.Editor
                 }
             }
 
-            if (!TryPlaceMapRooms(roomCount, rooms, junction, random, settings, graph, tiles, placedByNode, definitionByNode, roomUseCounts, cellToNode, corridorAdjacency, usedRoomDirections, out diagnostics))
+            if (!TryPlaceMapRooms(roomCount, rooms, junction, straight, deadEnd, random, settings, graph, tiles, placedByNode, definitionByNode, roomUseCounts, cellToNode, corridorAdjacency, usedRoomDirections, manualConnections, manualEdgeIds, out diagnostics))
             {
                 return false;
             }
 
-            var connections = new List<PlacedDoorwayConnection>();
-            if (!TryBuildMatchedConnections(graph, placedByNode, definitionByNode, connections, out diagnostics))
+            var connections = new List<PlacedDoorwayConnection>(manualConnections);
+            if (!TryBuildMatchedConnections(graph, placedByNode, definitionByNode, connections, manualEdgeIds, out diagnostics))
             {
                 return false;
             }
+
+            AddMatchedLoopConnections(graph, placedByNode, definitionByNode, connections);
 
             layout = new ResolvedFacilityLayout(seed, tiles, connections, new PlacementFailureDiagnostics(), 0);
             if (OccupancyValidator.AnyOverlap(layout.Tiles, settings.OverlapTolerance, out string overlap))
@@ -541,6 +546,8 @@ namespace EscapeBlock9.ProcGen.Editor
             int roomCount,
             IReadOnlyList<TileDefinition> rooms,
             TileDefinition junction,
+            TileDefinition straight,
+            TileDefinition deadEnd,
             System.Random random,
             FacilityPlacementSettings settings,
             FacilityGraph graph,
@@ -551,6 +558,8 @@ namespace EscapeBlock9.ProcGen.Editor
             Dictionary<Vector2Int, int> cellToNode,
             Dictionary<Vector2Int, HashSet<GridDirection>> corridorAdjacency,
             Dictionary<Vector2Int, HashSet<GridDirection>> usedRoomDirections,
+            List<PlacedDoorwayConnection> manualConnections,
+            HashSet<int> manualEdgeIds,
             out string diagnostics)
         {
             diagnostics = string.Empty;
@@ -558,6 +567,8 @@ namespace EscapeBlock9.ProcGen.Editor
             for (int roomIndex = 0; roomIndex < roomCount; roomIndex++)
             {
                 TileDefinition roomDefinition = SelectRoomDefinition(rooms, random, roomUseCounts);
+                List<RoomDoorSlot> slots = BuildRoomDoorSlots(roomDefinition, random);
+                RoomDoorSlot primarySlot = FindPrimaryActiveSlot(slots);
                 List<RoomSocketCandidate> candidates = BuildRoomSocketCandidates(cellToNode, corridorAdjacency, usedRoomDirections, random);
                 bool placedRoom = false;
 
@@ -567,9 +578,16 @@ namespace EscapeBlock9.ProcGen.Editor
                     int corridorNodeId = cellToNode[candidate.Cell];
                     PlacedTile corridorTile = placedByNode[corridorNodeId];
                     string doorwayId = DirectionToDoorwayId(candidate.Direction);
-                    SnapTransformResult roomSnap = SnapToDoorway(corridorTile, junction, FindDoorwayIndex(junction, doorwayId), roomDefinition, "room_door");
+                    int corridorDoorwayIndex = FindDoorwayIndex(junction, doorwayId);
+                    SnapTransformResult roomSnap = SnapToDoorway(corridorTile, junction, corridorDoorwayIndex, roomDefinition, primarySlot.ConnectorId);
                     List<PlacedOccupancyBox> boxes = OccupancyValidator.BuildBoxes(roomDefinition.TilePrefab, roomSnap.Position, roomSnap.Rotation, settings.OccupancyPadding);
                     if (OccupancyValidator.WouldOverlap(boxes, tiles, settings.OverlapTolerance, out _))
+                    {
+                        continue;
+                    }
+
+                    var roomProbe = new PlacedTile(-1, roomDefinition, roomSnap.Position, roomSnap.Rotation, boxes);
+                    if (!TryPlanExtraRoomDoorBranches(roomProbe, slots, primarySlot, straight, junction, deadEnd, random, settings, tiles, out List<PlannedBranchTile> plannedBranchTiles))
                     {
                         continue;
                     }
@@ -579,8 +597,47 @@ namespace EscapeBlock9.ProcGen.Editor
                     tiles.Add(placed);
                     placedByNode[roomNode.Id] = placed;
                     definitionByNode[roomNode.Id] = roomDefinition;
-                    graph.AddEdge(corridorNodeId, roomNode.Id, FacilityGraphEdgeRole.DeadEnd);
-                    graph.AddBranch(new FacilityGraphBranch(roomIndex, corridorNodeId, new[] { roomNode.Id }, FacilityGraphEdgeRole.DeadEnd));
+
+                    FacilityGraphEdge roomEdge = graph.AddEdge(corridorNodeId, roomNode.Id, FacilityGraphEdgeRole.DeadEnd);
+                    manualConnections.Add(new PlacedDoorwayConnection(
+                        roomEdge.Id,
+                        corridorNodeId,
+                        corridorDoorwayIndex,
+                        roomNode.Id,
+                        FindDoorwayIndex(roomDefinition, primarySlot.ConnectorId)));
+                    manualEdgeIds.Add(roomEdge.Id);
+
+                    var branchNodeIds = new List<int> { roomNode.Id };
+                    var plannedNodeIds = new List<int>(plannedBranchTiles.Count);
+                    for (int branchTileIndex = 0; branchTileIndex < plannedBranchTiles.Count; branchTileIndex++)
+                    {
+                        PlannedBranchTile plannedBranchTile = plannedBranchTiles[branchTileIndex];
+                        FacilityGraphNode branchNode = graph.AddNode(plannedBranchTile.NodeRole, -1, roomIndex, 2 + branchTileIndex, 0);
+                        plannedNodeIds.Add(branchNode.Id);
+                        var branchPlaced = new PlacedTile(branchNode.Id, plannedBranchTile.Definition, plannedBranchTile.Position, plannedBranchTile.Rotation, plannedBranchTile.OccupancyBoxes);
+                        tiles.Add(branchPlaced);
+                        placedByNode[branchNode.Id] = branchPlaced;
+                        definitionByNode[branchNode.Id] = plannedBranchTile.Definition;
+
+                        int fromNodeId = plannedBranchTile.ConnectFromPlanIndex < 0
+                            ? roomNode.Id
+                            : plannedNodeIds[plannedBranchTile.ConnectFromPlanIndex];
+                        TileDefinition fromDefinition = plannedBranchTile.ConnectFromPlanIndex < 0
+                            ? roomDefinition
+                            : plannedBranchTiles[plannedBranchTile.ConnectFromPlanIndex].Definition;
+
+                        FacilityGraphEdge branchEdge = graph.AddEdge(fromNodeId, branchNode.Id, plannedBranchTile.EdgeRole);
+                        manualConnections.Add(new PlacedDoorwayConnection(
+                            branchEdge.Id,
+                            fromNodeId,
+                            FindDoorwayIndex(fromDefinition, plannedBranchTile.ConnectFromDoorwayId),
+                            branchNode.Id,
+                            FindDoorwayIndex(plannedBranchTile.Definition, plannedBranchTile.ConnectToDoorwayId)));
+                        manualEdgeIds.Add(branchEdge.Id);
+                        branchNodeIds.Add(branchNode.Id);
+                    }
+
+                    graph.AddBranch(new FacilityGraphBranch(roomIndex, corridorNodeId, branchNodeIds, FacilityGraphEdgeRole.Branch));
                     usedRoomDirections[candidate.Cell].Add(candidate.Direction);
                     placedRoom = true;
                     break;
@@ -627,17 +684,288 @@ namespace EscapeBlock9.ProcGen.Editor
             return candidates;
         }
 
+        private static List<RoomDoorSlot> BuildRoomDoorSlots(TileDefinition roomDefinition, System.Random random)
+        {
+            RoomDoorSlot[] candidates = GetRoomDoorSlotCandidates(roomDefinition);
+            var order = new List<int>(candidates.Length);
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                order.Add(i);
+            }
+
+            Shuffle(order, random);
+            var activeSlots = new HashSet<int>();
+            activeSlots.Add(order[0]);
+            if (order.Count > 1 && random.NextDouble() <= 0.66d)
+            {
+                activeSlots.Add(order[1]);
+            }
+
+            if (order.Count > 2 && random.NextDouble() <= 0.33d)
+            {
+                activeSlots.Add(order[2]);
+            }
+
+            var slots = new List<RoomDoorSlot>(candidates.Length);
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                RoomDoorSlot slot = candidates[i];
+                slots.Add(new RoomDoorSlot(
+                    slot.SlotIndex,
+                    slot.ConnectorId,
+                    slot.LocalPosition,
+                    slot.LocalForward,
+                    activeSlots.Contains(i),
+                    order[0] == i));
+            }
+
+            return slots;
+        }
+
+        private static RoomDoorSlot[] GetRoomDoorSlotCandidates(TileDefinition roomDefinition)
+        {
+            string moduleId = roomDefinition != null ? roomDefinition.ModuleId : string.Empty;
+            if (string.Equals(moduleId, "room_bathroom", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[]
+                {
+                    new RoomDoorSlot(0, "room_door", new Vector3(4f, 1.1f, 7.05f), Vector3.forward, false, false),
+                    new RoomDoorSlot(1, "room_door_right", new Vector3(8.1f, 1.1f, 5.1f), Vector3.right, false, false)
+                };
+            }
+
+            if (string.Equals(moduleId, "room_shop_special", StringComparison.OrdinalIgnoreCase))
+            {
+                return new[]
+                {
+                    new RoomDoorSlot(0, "room_door", new Vector3(4f, 1.1f, 7.05f), Vector3.forward, false, false),
+                    new RoomDoorSlot(1, "room_door_left", new Vector3(-0.1f, 1.1f, 3.5f), Vector3.left, false, false)
+                };
+            }
+
+            return new[]
+            {
+                new RoomDoorSlot(0, "room_door", new Vector3(4f, 1.1f, 7.05f), Vector3.forward, false, false),
+                new RoomDoorSlot(1, "room_door_left", new Vector3(-0.1f, 1.1f, 3.5f), Vector3.left, false, false),
+                new RoomDoorSlot(2, "room_door_right", new Vector3(8.1f, 1.1f, 3.5f), Vector3.right, false, false)
+            };
+        }
+
+        private static RoomDoorSlot FindPrimaryActiveSlot(IReadOnlyList<RoomDoorSlot> slots)
+        {
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (slots[i].IsPrimary)
+                {
+                    return slots[i];
+                }
+            }
+
+            return slots[0];
+        }
+
+        private static bool TryPlanExtraRoomDoorBranches(
+            PlacedTile roomProbe,
+            IReadOnlyList<RoomDoorSlot> slots,
+            RoomDoorSlot primarySlot,
+            TileDefinition straight,
+            TileDefinition junction,
+            TileDefinition deadEnd,
+            System.Random random,
+            FacilityPlacementSettings settings,
+            IReadOnlyList<PlacedTile> existingTiles,
+            out List<PlannedBranchTile> plannedBranchTiles)
+        {
+            plannedBranchTiles = new List<PlannedBranchTile>();
+            var validationTiles = new List<PlacedTile>(existingTiles)
+            {
+                roomProbe
+            };
+
+            for (int i = 0; i < slots.Count; i++)
+            {
+                RoomDoorSlot slot = slots[i];
+                if (!slot.IsActive || slot.SlotIndex == primarySlot.SlotIndex)
+                {
+                    continue;
+                }
+
+                int planStart = plannedBranchTiles.Count;
+                int validationStart = validationTiles.Count;
+                bool branchFits = true;
+                int lastPlanIndex = -1;
+                string lastDoorwayId = slot.ConnectorId;
+                int straightCount = random.Next(1, 3);
+                for (int step = 0; step < straightCount; step++)
+                {
+                    if (!TryAppendBranchTile(
+                        roomProbe,
+                        plannedBranchTiles,
+                        validationTiles,
+                        settings,
+                        lastPlanIndex,
+                        lastDoorwayId,
+                        straight,
+                        "south",
+                        FacilityGraphNodeRole.Branch,
+                        FacilityGraphEdgeRole.Branch,
+                        out lastPlanIndex))
+                    {
+                        branchFits = false;
+                        break;
+                    }
+
+                    lastDoorwayId = "north";
+                }
+
+                if (branchFits && TryAppendJunctionBranchNetwork(roomProbe, plannedBranchTiles, validationTiles, settings, lastPlanIndex, lastDoorwayId, straight, junction, deadEnd, random))
+                {
+                    continue;
+                }
+
+                if (branchFits && !TryAppendBranchTermination(roomProbe, plannedBranchTiles, validationTiles, settings, lastPlanIndex, lastDoorwayId, straight, deadEnd, random))
+                {
+                    branchFits = false;
+                }
+
+                if (!branchFits)
+                {
+                    plannedBranchTiles.RemoveRange(planStart, plannedBranchTiles.Count - planStart);
+                    validationTiles.RemoveRange(validationStart, validationTiles.Count - validationStart);
+                }
+            }
+
+            return true;
+        }
+
+        private static bool TryAppendJunctionBranchNetwork(
+            PlacedTile roomProbe,
+            List<PlannedBranchTile> plannedBranchTiles,
+            List<PlacedTile> validationTiles,
+            FacilityPlacementSettings settings,
+            int fromPlanIndex,
+            string fromDoorwayId,
+            TileDefinition straight,
+            TileDefinition junction,
+            TileDefinition deadEnd,
+            System.Random random)
+        {
+            int planStart = plannedBranchTiles.Count;
+            int validationStart = validationTiles.Count;
+            if (!TryAppendBranchTile(roomProbe, plannedBranchTiles, validationTiles, settings, fromPlanIndex, fromDoorwayId, junction, "south", FacilityGraphNodeRole.Branch, FacilityGraphEdgeRole.Branch, out int junctionPlanIndex))
+            {
+                return false;
+            }
+
+            GridDirection[] exits = { GridDirection.North, GridDirection.East, GridDirection.West };
+            Shuffle(exits, random);
+            int connectedExits = 0;
+            for (int i = 0; i < exits.Length; i++)
+            {
+                if (TryAppendBranchTermination(roomProbe, plannedBranchTiles, validationTiles, settings, junctionPlanIndex, DirectionToDoorwayId(exits[i]), straight, deadEnd, random))
+                {
+                    connectedExits++;
+                }
+            }
+
+            if (connectedExits > 0)
+            {
+                return true;
+            }
+
+            plannedBranchTiles.RemoveRange(planStart, plannedBranchTiles.Count - planStart);
+            validationTiles.RemoveRange(validationStart, validationTiles.Count - validationStart);
+            return false;
+        }
+
+        private static bool TryAppendBranchTermination(
+            PlacedTile roomProbe,
+            List<PlannedBranchTile> plannedBranchTiles,
+            List<PlacedTile> validationTiles,
+            FacilityPlacementSettings settings,
+            int fromPlanIndex,
+            string fromDoorwayId,
+            TileDefinition straight,
+            TileDefinition deadEnd,
+            System.Random random)
+        {
+            int terminalFromIndex = fromPlanIndex;
+            string terminalFromDoorway = fromDoorwayId;
+            if (TryAppendBranchTile(roomProbe, plannedBranchTiles, validationTiles, settings, fromPlanIndex, fromDoorwayId, straight, "south", FacilityGraphNodeRole.Branch, FacilityGraphEdgeRole.Branch, out int straightPlanIndex))
+            {
+                terminalFromIndex = straightPlanIndex;
+                terminalFromDoorway = "north";
+            }
+
+            return TryAppendBranchTile(roomProbe, plannedBranchTiles, validationTiles, settings, terminalFromIndex, terminalFromDoorway, deadEnd, "south", FacilityGraphNodeRole.DeadEnd, FacilityGraphEdgeRole.DeadEnd, out _);
+        }
+
+        private static bool TryAppendBranchTile(
+            PlacedTile roomProbe,
+            List<PlannedBranchTile> plannedBranchTiles,
+            List<PlacedTile> validationTiles,
+            FacilityPlacementSettings settings,
+            int fromPlanIndex,
+            string fromDoorwayId,
+            TileDefinition candidateDefinition,
+            string candidateDoorwayId,
+            FacilityGraphNodeRole nodeRole,
+            FacilityGraphEdgeRole edgeRole,
+            out int appendedPlanIndex)
+        {
+            appendedPlanIndex = -1;
+            PlacedTile openTile = fromPlanIndex < 0
+                ? roomProbe
+                : validationTiles[validationTiles.Count - plannedBranchTiles.Count + fromPlanIndex];
+            TileDefinition openDefinition = fromPlanIndex < 0
+                ? roomProbe.Definition
+                : plannedBranchTiles[fromPlanIndex].Definition;
+            int openDoorwayIndex = FindDoorwayIndex(openDefinition, fromDoorwayId);
+            if (openDoorwayIndex < 0)
+            {
+                return false;
+            }
+
+            SnapTransformResult snap = SnapToDoorway(openTile, openDefinition, openDoorwayIndex, candidateDefinition, candidateDoorwayId);
+            List<PlacedOccupancyBox> boxes = OccupancyValidator.BuildBoxes(candidateDefinition.TilePrefab, snap.Position, snap.Rotation, settings.OccupancyPadding);
+            if (OccupancyValidator.WouldOverlap(boxes, validationTiles, settings.OverlapTolerance, out _))
+            {
+                return false;
+            }
+
+            var planned = new PlannedBranchTile(
+                candidateDefinition,
+                snap.Position,
+                snap.Rotation,
+                boxes,
+                fromPlanIndex,
+                fromDoorwayId,
+                candidateDoorwayId,
+                nodeRole,
+                edgeRole);
+            plannedBranchTiles.Add(planned);
+            validationTiles.Add(new PlacedTile(-1, candidateDefinition, snap.Position, snap.Rotation, boxes));
+            appendedPlanIndex = plannedBranchTiles.Count - 1;
+            return true;
+        }
+
         private static bool TryBuildMatchedConnections(
             FacilityGraph graph,
             IReadOnlyDictionary<int, PlacedTile> placedByNode,
             IReadOnlyDictionary<int, TileDefinition> definitionByNode,
             List<PlacedDoorwayConnection> connections,
+            HashSet<int> skippedEdgeIds,
             out string diagnostics)
         {
             diagnostics = string.Empty;
             for (int i = 0; i < graph.Edges.Count; i++)
             {
                 FacilityGraphEdge edge = graph.Edges[i];
+                if (skippedEdgeIds != null && skippedEdgeIds.Contains(edge.Id))
+                {
+                    continue;
+                }
+
                 if (!placedByNode.TryGetValue(edge.FromNodeId, out PlacedTile fromTile) ||
                     !placedByNode.TryGetValue(edge.ToNodeId, out PlacedTile toTile) ||
                     !definitionByNode.TryGetValue(edge.FromNodeId, out TileDefinition fromDefinition) ||
@@ -687,6 +1015,115 @@ namespace EscapeBlock9.ProcGen.Editor
             }
 
             return true;
+        }
+
+        private static bool TryBuildMatchedConnections(
+            FacilityGraph graph,
+            IReadOnlyDictionary<int, PlacedTile> placedByNode,
+            IReadOnlyDictionary<int, TileDefinition> definitionByNode,
+            List<PlacedDoorwayConnection> connections,
+            out string diagnostics)
+        {
+            return TryBuildMatchedConnections(graph, placedByNode, definitionByNode, connections, null, out diagnostics);
+        }
+
+        private static void AddMatchedLoopConnections(
+            FacilityGraph graph,
+            IReadOnlyDictionary<int, PlacedTile> placedByNode,
+            IReadOnlyDictionary<int, TileDefinition> definitionByNode,
+            List<PlacedDoorwayConnection> connections)
+        {
+            var usedDoorways = new HashSet<string>();
+            var connectedPairs = new HashSet<string>();
+            for (int i = 0; i < connections.Count; i++)
+            {
+                PlacedDoorwayConnection connection = connections[i];
+                usedDoorways.Add(DoorwayKey(connection.FromNodeId, connection.FromDoorwayIndex));
+                usedDoorways.Add(DoorwayKey(connection.ToNodeId, connection.ToDoorwayIndex));
+                connectedPairs.Add(NodePairKey(connection.FromNodeId, connection.ToNodeId));
+            }
+
+            var placed = new List<PlacedTile>(placedByNode.Count);
+            foreach (KeyValuePair<int, PlacedTile> pair in placedByNode)
+            {
+                placed.Add(pair.Value);
+            }
+            placed.Sort((a, b) => a.NodeId.CompareTo(b.NodeId));
+            for (int a = 0; a < placed.Count; a++)
+            {
+                PlacedTile firstTile = placed[a];
+                if (!definitionByNode.TryGetValue(firstTile.NodeId, out TileDefinition firstDefinition))
+                {
+                    continue;
+                }
+
+                Doorway[] firstDoorways = firstDefinition.TilePrefab.GetDoorways();
+                for (int b = a + 1; b < placed.Count; b++)
+                {
+                    PlacedTile secondTile = placed[b];
+                    if (connectedPairs.Contains(NodePairKey(firstTile.NodeId, secondTile.NodeId)) ||
+                        !definitionByNode.TryGetValue(secondTile.NodeId, out TileDefinition secondDefinition))
+                    {
+                        continue;
+                    }
+
+                    Doorway[] secondDoorways = secondDefinition.TilePrefab.GetDoorways();
+                    for (int firstIndex = 0; firstIndex < firstDoorways.Length; firstIndex++)
+                    {
+                        string firstKey = DoorwayKey(firstTile.NodeId, firstIndex);
+                        if (usedDoorways.Contains(firstKey))
+                        {
+                            continue;
+                        }
+
+                        Vector3 firstPosition = firstTile.DoorwayPosition(firstDoorways[firstIndex]);
+                        Vector3 firstForward = firstTile.DoorwayForward(firstDoorways[firstIndex]);
+                        for (int secondIndex = 0; secondIndex < secondDoorways.Length; secondIndex++)
+                        {
+                            string secondKey = DoorwayKey(secondTile.NodeId, secondIndex);
+                            if (usedDoorways.Contains(secondKey))
+                            {
+                                continue;
+                            }
+
+                            if (Vector3.Distance(firstPosition, secondTile.DoorwayPosition(secondDoorways[secondIndex])) > 0.06f)
+                            {
+                                continue;
+                            }
+
+                            float dot = Vector3.Dot(firstForward, secondTile.DoorwayForward(secondDoorways[secondIndex]));
+                            if (dot > -0.98f)
+                            {
+                                continue;
+                            }
+
+                            FacilityGraphEdge loop = graph.AddEdge(firstTile.NodeId, secondTile.NodeId, FacilityGraphEdgeRole.Loop);
+                            connections.Add(new PlacedDoorwayConnection(loop.Id, firstTile.NodeId, firstIndex, secondTile.NodeId, secondIndex));
+                            usedDoorways.Add(firstKey);
+                            usedDoorways.Add(secondKey);
+                            connectedPairs.Add(NodePairKey(firstTile.NodeId, secondTile.NodeId));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        private static string DoorwayKey(int nodeId, int doorwayIndex)
+        {
+            return $"{nodeId}:{doorwayIndex}";
+        }
+
+        private static string NodePairKey(int firstNodeId, int secondNodeId)
+        {
+            if (firstNodeId > secondNodeId)
+            {
+                int temp = firstNodeId;
+                firstNodeId = secondNodeId;
+                secondNodeId = temp;
+            }
+
+            return $"{firstNodeId}:{secondNodeId}";
         }
 
         private static Vector3 CellToWorld(Vector2Int cell)
@@ -799,6 +1236,67 @@ namespace EscapeBlock9.ProcGen.Editor
 
             public Vector2Int Cell { get; }
             public GridDirection Direction { get; }
+        }
+
+        private readonly struct RoomDoorSlot
+        {
+            public RoomDoorSlot(
+                int slotIndex,
+                string connectorId,
+                Vector3 localPosition,
+                Vector3 localForward,
+                bool isActive,
+                bool isPrimary)
+            {
+                SlotIndex = slotIndex;
+                ConnectorId = connectorId;
+                LocalPosition = localPosition;
+                LocalForward = localForward.sqrMagnitude > 0.0001f ? localForward.normalized : Vector3.forward;
+                IsActive = isActive;
+                IsPrimary = isPrimary;
+            }
+
+            public int SlotIndex { get; }
+            public string ConnectorId { get; }
+            public Vector3 LocalPosition { get; }
+            public Vector3 LocalForward { get; }
+            public bool IsActive { get; }
+            public bool IsPrimary { get; }
+        }
+
+        private readonly struct PlannedBranchTile
+        {
+            public PlannedBranchTile(
+                TileDefinition definition,
+                Vector3 position,
+                Quaternion rotation,
+                IReadOnlyList<PlacedOccupancyBox> occupancyBoxes,
+                int connectFromPlanIndex,
+                string connectFromDoorwayId,
+                string connectToDoorwayId,
+                FacilityGraphNodeRole nodeRole,
+                FacilityGraphEdgeRole edgeRole)
+            {
+                Definition = definition;
+                Position = position;
+                Rotation = rotation;
+                OccupancyBoxes = new List<PlacedOccupancyBox>(occupancyBoxes);
+                ConnectFromPlanIndex = connectFromPlanIndex;
+                ConnectFromDoorwayId = connectFromDoorwayId;
+                ConnectToDoorwayId = connectToDoorwayId;
+                NodeRole = nodeRole;
+                EdgeRole = edgeRole;
+            }
+
+            public TileDefinition Definition { get; }
+            public Vector3 Position { get; }
+            public Quaternion Rotation { get; }
+            public IReadOnlyList<PlacedOccupancyBox> OccupancyBoxes { get; }
+            public int ConnectFromPlanIndex { get; }
+            public string ConnectFromDoorwayId { get; }
+            public string ConnectToDoorwayId { get; }
+            public FacilityGraphNodeRole NodeRole { get; }
+            public FacilityGraphEdgeRole EdgeRole { get; }
         }
 
         private static readonly GridDirection[] CardinalDirections =
