@@ -31,7 +31,7 @@ namespace EscapeBlock9.ProcGen.Runtime
 
             for (int i = 0; i < removals.Count; i++)
             {
-                if (Application.isPlaying)
+                if (ShouldDestroyAtRuntime(removals[i]))
                 {
                     Object.Destroy(removals[i]);
                 }
@@ -40,6 +40,17 @@ namespace EscapeBlock9.ProcGen.Runtime
                     Object.DestroyImmediate(removals[i]);
                 }
             }
+        }
+
+        private static bool ShouldDestroyAtRuntime(GameObject target)
+        {
+#if UNITY_EDITOR
+            if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(target))
+            {
+                return false;
+            }
+#endif
+            return Application.isPlaying;
         }
 
         private static bool IsUnderProcGenAuthoring(Transform transform)

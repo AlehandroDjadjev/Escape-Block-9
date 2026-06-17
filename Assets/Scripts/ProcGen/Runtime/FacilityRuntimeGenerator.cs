@@ -26,6 +26,7 @@ namespace EscapeBlock9.ProcGen.Runtime
         private const string DefaultCatalogPath = "Assets/ProcGen/Catalogs/InitialBlock9TileCatalog.asset";
         private const string DefaultLootPrefabPath = "Assets/arhitektura/KeyItem.prefab";
         private const string DefaultEnemyPrefabPath = "Assets/enteties/StickNPC_01.prefab";
+        private const string DefaultLightFixturePrefabPath = "Assets/GeneratedLighting/ProcGenFlickeringFluorescent.prefab";
 
         [Header("Generation Assets")]
         [SerializeField] private TileCatalog tileCatalog;
@@ -120,6 +121,7 @@ namespace EscapeBlock9.ProcGen.Runtime
                     ClearPreviousRoot();
                 }
 
+                ApplyDarkGeneratedLighting();
                 FacilityGraphPlanConfig graphPlan = BuildGraphPlan();
                 FacilityGraph graph = new FacilityGraphPlanner().Plan(graphPlan);
                 ResolvedFacilityLayout layout = new CustomFacilityLayoutSolver().Solve(graph, tileCatalog, graphPlan.MasterSeed);
@@ -576,6 +578,24 @@ namespace EscapeBlock9.ProcGen.Runtime
             return new Bounds(tile.Position, Vector3.one * 2f);
         }
 
+        private static void ApplyDarkGeneratedLighting()
+        {
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.015f, 0.018f, 0.022f, 1f);
+            RenderSettings.ambientIntensity = 0.06f;
+            RenderSettings.reflectionIntensity = 0.05f;
+
+            Light[] lights = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include);
+            for (int i = 0; i < lights.Length; i++)
+            {
+                Light light = lights[i];
+                if (light != null && light.type == LightType.Directional)
+                {
+                    light.intensity = 0.03f;
+                }
+            }
+        }
+
 #if UNITY_EDITOR
         private void AutoAssignDefaultsInEditor()
         {
@@ -603,6 +623,13 @@ namespace EscapeBlock9.ProcGen.Runtime
             {
                 populationSettings.EnemyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultEnemyPrefabPath);
             }
+
+            if (populationSettings.LightFixturePrefab == null)
+            {
+                populationSettings.LightFixturePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultLightFixturePrefabPath);
+            }
+
+            populationSettings.LightChance = 0.5f;
         }
 #endif
 

@@ -16,6 +16,7 @@ namespace EscapeBlock9.ProcGen.Editor
     {
         private const string CatalogPath = "Assets/ProcGen/Catalogs/InitialBlock9TileCatalog.asset";
         private const string PreviewRootName = "GeneratedFacilityPreview";
+        private const string DefaultLightFixturePath = "Assets/GeneratedLighting/ProcGenFlickeringFluorescent.prefab";
         private const int RandomPreviewRetries = 40;
         private const int RandomPreviewMaxPlacementAttempts = 256;
 
@@ -208,6 +209,8 @@ namespace EscapeBlock9.ProcGen.Editor
                 LootPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/arhitektura/KeyItem.prefab"),
                 ObjectivePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/arhitektura/KeyItem.prefab"),
                 EnemyPrefab = null,
+                LightFixturePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultLightFixturePath),
+                LightChance = 0.5f,
                 EnableVerbosePopulationLogs = true
             };
 
@@ -230,6 +233,25 @@ namespace EscapeBlock9.ProcGen.Editor
             root.AddComponent<FacilityGenerationDebugOverlay>();
 
             Debug.Log(layout.ToDebugString() + layout.Diagnostics.ToDebugString() + resolution.ToDebugString() + populationReport.ToDebugString());
+            ApplyDarkGeneratedLighting();
+        }
+
+        private static void ApplyDarkGeneratedLighting()
+        {
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.015f, 0.018f, 0.022f, 1f);
+            RenderSettings.ambientIntensity = 0.06f;
+            RenderSettings.reflectionIntensity = 0.05f;
+
+            Light[] lights = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include);
+            for (int i = 0; i < lights.Length; i++)
+            {
+                Light light = lights[i];
+                if (light != null && light.type == LightType.Directional)
+                {
+                    light.intensity = 0.03f;
+                }
+            }
         }
 
         private static FacilityGraphPlanConfig BuildSmokeConfig()

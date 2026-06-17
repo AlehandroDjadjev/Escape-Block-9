@@ -21,9 +21,9 @@ RenderSettings:
   m_LinearFogStart: 0
   m_LinearFogEnd: 300
   m_AmbientSkyColor: {r: 0.018, g: 0.02, b: 0.028, a: 1}
-  m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
-  m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
-  m_AmbientIntensity: 0.18
+  m_AmbientEquatorColor: {r: 0.035, g: 0.039, b: 0.045, a: 1}
+  m_AmbientGroundColor: {r: 0.012, g: 0.012, b: 0.013, a: 1}
+  m_AmbientIntensity: 0.06
   m_AmbientMode: 3
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
   m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
@@ -35,7 +35,7 @@ RenderSettings:
   m_DefaultReflectionMode: 0
   m_DefaultReflectionResolution: 128
   m_ReflectionBounces: 1
-  m_ReflectionIntensity: 0.12
+  m_ReflectionIntensity: 0.05
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
   m_UseRadianceAmbientProbe: 0
@@ -148,7 +148,7 @@ Light:
   serializedVersion: 13
   m_Type: 1
   m_Color: {r: 0.62, g: 0.69, b: 0.86, a: 1}
-  m_Intensity: 0.18
+  m_Intensity: 0.03
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -361,7 +361,7 @@ MonoBehaviour:
     EnemyPrefab: {fileID: 0}
     ObjectivePrefab: {fileID: 0}
     HazardPrefab: {fileID: 0}
-    LightFixturePrefab: {fileID: 0}
+    LightFixturePrefab: {fileID: 8389529100184189909, guid: 43b3c2831cbc0e34daf75f546fefbf33, type: 3}
     AudioEmitterPrefab: {fileID: 0}
     BaseLootChance: 0.38
     LootDepthBonus: 0.5
@@ -369,7 +369,7 @@ MonoBehaviour:
     EnemyDepthBonus: 0.68
     BaseHazardChance: 0.1
     HazardDepthBonus: 0.45
-    LightChance: 0.9
+    LightChance: 0.5
     AudioAmbienceChance: 0.58
     FireExitRewardChance: 0.75
     FireExitRiskChance: 0.62

@@ -61,7 +61,7 @@ namespace EscapeBlock9.ProcGen.Population
         [Range(0f, 1f)] public float EnemyDepthBonus = 0.68f;
         [Range(0f, 1f)] public float BaseHazardChance = 0.1f;
         [Range(0f, 1f)] public float HazardDepthBonus = 0.45f;
-        [Range(0f, 1f)] public float LightChance = 0.9f;
+        [Range(0f, 1f)] public float LightChance = 0.5f;
         [Range(0f, 1f)] public float AudioAmbienceChance = 0.58f;
         [Range(0f, 1f)] public float FireExitRewardChance = 0.75f;
         [Range(0f, 1f)] public float FireExitRiskChance = 0.62f;
@@ -323,6 +323,7 @@ namespace EscapeBlock9.ProcGen.Population
                 }
 
                 SpawnMarker[] markers = tile.GetSpawnMarkers();
+                bool hasLightMarker = false;
                 for (int markerIndex = 0; markerIndex < markers.Length; markerIndex++)
                 {
                     SpawnMarker marker = markers[markerIndex];
@@ -331,6 +332,7 @@ namespace EscapeBlock9.ProcGen.Population
                         continue;
                     }
 
+                    hasLightMarker |= marker.Kind == SpawnMarkerKind.Light;
                     Vector3 worldPosition = marker.transform.position + Vector3.up * settings.SpawnHeightOffset;
                     var state = new PopulationMarkerUsage
                     {
@@ -365,9 +367,47 @@ namespace EscapeBlock9.ProcGen.Population
 
                     usage.Add(state);
                 }
+
+                if (!hasLightMarker && placedByNode.TryGetValue(node.Id, out PlacedTile placedTile))
+                {
+                    usage.Add(CreateSyntheticLightMarker(node, placedTile, ComputeDanger(node, mainPathIndex, graph.MainPathNodeIds.Count)));
+                }
             }
 
             return usage;
+        }
+
+        private PopulationMarkerUsage CreateSyntheticLightMarker(FacilityGraphNode node, PlacedTile placedTile, float danger)
+        {
+            Bounds bounds = BuildTileBounds(placedTile);
+            Vector3 position = new Vector3(bounds.center.x, bounds.max.y - 0.2f, bounds.center.z);
+            return new PopulationMarkerUsage
+            {
+                MarkerId = $"auto_ceiling_light_{node.Id}",
+                Kind = SpawnMarkerKind.Light,
+                NodeId = node.Id,
+                Danger = danger,
+                WorldPosition = position + Vector3.up * settings.SpawnHeightOffset,
+                Status = PopulationMarkerStatus.Unused,
+                Reason = string.Empty,
+                SpawnedObjectName = string.Empty
+            };
+        }
+
+        private static Bounds BuildTileBounds(PlacedTile tile)
+        {
+            if (tile != null && tile.OccupancyBoxes.Count > 0)
+            {
+                Bounds bounds = tile.OccupancyBoxes[0].Bounds;
+                for (int i = 1; i < tile.OccupancyBoxes.Count; i++)
+                {
+                    bounds.Encapsulate(tile.OccupancyBoxes[i].Bounds);
+                }
+
+                return bounds;
+            }
+
+            return new Bounds(tile != null ? tile.Position : Vector3.zero, new Vector3(3f, 3.5f, 3f));
         }
 
         private void ResolvePlayerStart(
@@ -585,10 +625,30 @@ namespace EscapeBlock9.ProcGen.Population
             ICollection<PopulationSpawnRecord> spawns,
             SeededRandom random)
         {
+            var lightMarkersByNode = new Dictionary<int, List<int>>();
+            var nodeOrder = new List<int>();
             for (int i = 0; i < markers.Count; i++)
             {
                 PopulationMarkerUsage marker = markers[i];
                 if (marker.Kind != SpawnMarkerKind.Light || marker.Status != PopulationMarkerStatus.Unused)
+                {
+                    continue;
+                }
+
+                if (!lightMarkersByNode.TryGetValue(marker.NodeId, out List<int> nodeMarkers))
+                {
+                    nodeMarkers = new List<int>();
+                    lightMarkersByNode[marker.NodeId] = nodeMarkers;
+                    nodeOrder.Add(marker.NodeId);
+                }
+
+                nodeMarkers.Add(i);
+            }
+
+            for (int nodeOrderIndex = 0; nodeOrderIndex < nodeOrder.Count; nodeOrderIndex++)
+            {
+                List<int> nodeMarkers = lightMarkersByNode[nodeOrder[nodeOrderIndex]];
+                if (nodeMarkers.Count == 0)
                 {
                     continue;
                 }
@@ -598,6 +658,8 @@ namespace EscapeBlock9.ProcGen.Population
                     continue;
                 }
 
+                int i = nodeMarkers[random.RangeInclusive(0, nodeMarkers.Count - 1)];
+                PopulationMarkerUsage marker = markers[i];
                 GameObject lightRoot = SpawnGameplayPrefab(root, settings.LightFixturePrefab, marker, $"ProcGenLight_{marker.NodeId}_{i}");
                 if (lightRoot == null)
                 {
@@ -606,20 +668,18 @@ namespace EscapeBlock9.ProcGen.Population
                     lightRoot.transform.position = marker.WorldPosition;
                 }
 
-                Light light = lightRoot.GetComponent<Light>();
+                Light light = lightRoot.GetComponentInChildren<Light>();
                 if (light == null)
                 {
                     light = lightRoot.AddComponent<Light>();
                 }
 
                 light.type = LightType.Point;
-                light.intensity = Mathf.Lerp(0.7f, 1.3f, marker.Danger);
-                light.range = 8f;
+                light.intensity = Mathf.Lerp(0.55f, 1.05f, marker.Danger);
+                light.range = 7f;
                 light.color = new Color(0.62f, 0.78f, 0.9f, 1f);
-                if (random.Chance(0.45f))
-                {
-                    TryAddFlicker(lightRoot);
-                }
+                light.shadows = LightShadows.None;
+                TryAddFlicker(lightRoot);
 
                 SetUsed(markers, i, "light", lightRoot.name);
                 spawns.Add(SpawnRecord("light", markers[i], "light", lightRoot.name));
