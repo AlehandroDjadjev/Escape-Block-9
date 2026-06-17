@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7de38af1ad689424180babbee7a63639, type: 3}
+  m_Name: Room_Shop_Special_Definition
+  m_EditorClassIdentifier: Assembly-CSharp::EscapeBlock9.ProcGen.Data.TileDefinition
+  moduleId: room_shop_special
+  displayName: Special Room - Shop
+  prefab: {fileID: 3136525390687817060, guid: cfa88e0edabc39d4994db69d511ed5e5, type: 3}
+  category: 5
+  tags:
+  - room
+  - shop
+  - special
+  - large
+  defaultConnectorKind: 1
+  selectionWeight: 0.4
+  maxUseCount: 1
+  unique: 1
+  allowedYawRotations: 14

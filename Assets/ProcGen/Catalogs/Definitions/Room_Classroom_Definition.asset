@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7de38af1ad689424180babbee7a63639, type: 3}
+  m_Name: Room_Classroom_Definition
+  m_EditorClassIdentifier: Assembly-CSharp::EscapeBlock9.ProcGen.Data.TileDefinition
+  moduleId: room_classroom
+  displayName: Normal Room - Classroom
+  prefab: {fileID: 8072760845406114159, guid: 788c54eb8a47b0249b850e4c156cf341, type: 3}
+  category: 0
+  tags:
+  - room
+  - classroom
+  - normal
+  defaultConnectorKind: 1
+  selectionWeight: 1
+  maxUseCount: -1
+  unique: 0
+  allowedYawRotations: 14

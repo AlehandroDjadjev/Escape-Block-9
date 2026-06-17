@@ -1,0 +1,21 @@
+{
+  "name": "EscapeBlock9.ProcGen.EditModeTests",
+  "rootNamespace": "EscapeBlock9.ProcGen.Tests",
+  "references": [
+    "EscapeBlock9.ProcGen"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "noEngineReferences": false
+}

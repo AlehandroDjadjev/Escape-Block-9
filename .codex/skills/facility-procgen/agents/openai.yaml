@@ -1,0 +1,7 @@
+interface:
+  display_name: "Facility Procgen"
+  short_description: "Unity facility generation workflow"
+  default_prompt: "Use $facility-procgen to implement the next scoped part of the Escape Block 9 procedural facility generator."
+policy:
+  allow_implicit_invocation: true
+
