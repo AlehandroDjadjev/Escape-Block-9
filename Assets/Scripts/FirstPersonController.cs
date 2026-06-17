@@ -25,7 +25,19 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private float minPitch = -80f;
     [SerializeField] private float maxPitch = 80f;
 
+    [Header("Starting Flashlight")]
+    [SerializeField] private bool enableStartingFlashlight = true;
+    [SerializeField] private Vector3 flashlightLocalPosition = new Vector3(0.16f, -0.08f, 0.28f);
+    [SerializeField] private Vector3 flashlightLocalEulerAngles = Vector3.zero;
+    [SerializeField] private Color flashlightColor = new Color(1f, 0.96f, 0.88f, 1f);
+    [SerializeField] private float flashlightIntensity = 1.35f;
+    [SerializeField] private float flashlightRange = 18f;
+    [SerializeField] private float flashlightSpotAngle = 72f;
+    [SerializeField] private float flashlightInnerSpotAngle = 44f;
+    [SerializeField] private LightShadows flashlightShadows = LightShadows.None;
+
     private CharacterController characterController;
+    private Light flashlight;
     private float currentSprintBonus;
     private float verticalVelocity;
     private float pitch;
@@ -50,6 +62,7 @@ public class FirstPersonController : MonoBehaviour
             standingCameraLocalPosition = cameraPivot.localPosition;
         }
 
+        EnsureStartingFlashlight();
     }
 
     private void OnEnable()
@@ -203,5 +216,38 @@ public class FirstPersonController : MonoBehaviour
         }
 
         return Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
+    }
+
+    private void EnsureStartingFlashlight()
+    {
+        if (!enableStartingFlashlight || cameraPivot == null)
+        {
+            return;
+        }
+
+        Transform flashlightTransform = cameraPivot.Find("PlayerFlashlight");
+        if (flashlightTransform == null)
+        {
+            GameObject flashlightObject = new GameObject("PlayerFlashlight");
+            flashlightTransform = flashlightObject.transform;
+            flashlightTransform.SetParent(cameraPivot, false);
+        }
+
+        flashlightTransform.localPosition = flashlightLocalPosition;
+        flashlightTransform.localEulerAngles = flashlightLocalEulerAngles;
+
+        flashlight = flashlightTransform.GetComponent<Light>();
+        if (flashlight == null)
+        {
+            flashlight = flashlightTransform.gameObject.AddComponent<Light>();
+        }
+
+        flashlight.type = LightType.Spot;
+        flashlight.color = flashlightColor;
+        flashlight.intensity = Mathf.Max(0f, flashlightIntensity);
+        flashlight.range = Mathf.Max(0.1f, flashlightRange);
+        flashlight.spotAngle = Mathf.Clamp(flashlightSpotAngle, 1f, 179f);
+        flashlight.innerSpotAngle = Mathf.Clamp(flashlightInnerSpotAngle, 0f, flashlight.spotAngle);
+        flashlight.shadows = flashlightShadows;
     }
 }

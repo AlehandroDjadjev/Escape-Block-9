@@ -210,7 +210,11 @@ namespace EscapeBlock9.ProcGen.Editor
                 ObjectivePrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/arhitektura/KeyItem.prefab"),
                 EnemyPrefab = null,
                 LightFixturePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultLightFixturePath),
-                LightChance = 0.5f,
+                LightChance = 0.35f,
+                MinLightIntensity = 0.22f,
+                MaxLightIntensity = 0.5f,
+                LightRange = 5.5f,
+                LightColor = new Color(0.5f, 0.62f, 0.72f, 1f),
                 EnableVerbosePopulationLogs = true
             };
 
@@ -239,9 +243,9 @@ namespace EscapeBlock9.ProcGen.Editor
         private static void ApplyDarkGeneratedLighting()
         {
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = new Color(0.015f, 0.018f, 0.022f, 1f);
-            RenderSettings.ambientIntensity = 0.06f;
-            RenderSettings.reflectionIntensity = 0.05f;
+            RenderSettings.ambientLight = new Color(0.009f, 0.011f, 0.015f, 1f);
+            RenderSettings.ambientIntensity = 0.025f;
+            RenderSettings.reflectionIntensity = 0.015f;
 
             Light[] lights = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include);
             for (int i = 0; i < lights.Length; i++)
@@ -249,7 +253,7 @@ namespace EscapeBlock9.ProcGen.Editor
                 Light light = lights[i];
                 if (light != null && light.type == LightType.Directional)
                 {
-                    light.intensity = 0.03f;
+                    light.intensity = 0.01f;
                 }
             }
         }

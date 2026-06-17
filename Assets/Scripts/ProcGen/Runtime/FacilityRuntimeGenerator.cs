@@ -21,10 +21,10 @@ namespace EscapeBlock9.ProcGen.Runtime
     [Serializable]
     public sealed class FacilityRuntimeLightingSettings
     {
-        public Color AmbientColor = new Color(0.015f, 0.018f, 0.022f, 1f);
-        [Range(0f, 2f)] public float AmbientIntensity = 0.06f;
-        [Range(0f, 2f)] public float ReflectionIntensity = 0.05f;
-        [Range(0f, 2f)] public float DirectionalLightIntensity = 0.03f;
+        public Color AmbientColor = new Color(0.009f, 0.011f, 0.015f, 1f);
+        [Range(0f, 2f)] public float AmbientIntensity = 0.025f;
+        [Range(0f, 2f)] public float ReflectionIntensity = 0.015f;
+        [Range(0f, 2f)] public float DirectionalLightIntensity = 0.01f;
     }
 
     [DisallowMultipleComponent]

@@ -61,7 +61,7 @@ namespace EscapeBlock9.ProcGen.Population
         [Range(0f, 1f)] public float EnemyDepthBonus = 0.68f;
         [Range(0f, 1f)] public float BaseHazardChance = 0.1f;
         [Range(0f, 1f)] public float HazardDepthBonus = 0.45f;
-        [Range(0f, 1f)] public float LightChance = 0.5f;
+        [Range(0f, 1f)] public float LightChance = 0.35f;
         [Range(0f, 1f)] public float AudioAmbienceChance = 0.58f;
         [Range(0f, 1f)] public float FireExitRewardChance = 0.75f;
         [Range(0f, 1f)] public float FireExitRiskChance = 0.62f;
@@ -69,10 +69,10 @@ namespace EscapeBlock9.ProcGen.Population
         public float SpawnHeightOffset = 0.02f;
 
         [Header("Generated Light Settings")]
-        [Min(0f)] public float MinLightIntensity = 0.55f;
-        [Min(0f)] public float MaxLightIntensity = 1.05f;
-        [Min(0.1f)] public float LightRange = 7f;
-        public Color LightColor = new Color(0.62f, 0.78f, 0.9f, 1f);
+        [Min(0f)] public float MinLightIntensity = 0.22f;
+        [Min(0f)] public float MaxLightIntensity = 0.5f;
+        [Min(0.1f)] public float LightRange = 5.5f;
+        public Color LightColor = new Color(0.5f, 0.62f, 0.72f, 1f);
         public LightShadows LightShadows = LightShadows.None;
         public bool EnableLightFlicker = true;
 
