@@ -886,7 +886,7 @@ GameObject:
   - component: {fileID: 4319157057054971489}
   - component: {fileID: 1913359629235948815}
   - component: {fileID: 4193903406400730324}
-  - component: {fileID: 8894753548532880059}
+  - component: {fileID: 8829305531933996590}
   - component: {fileID: 4216188214596980963}
   m_Layer: 0
   m_Name: Teacher_basheva
@@ -992,7 +992,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2424204305854836104}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 2e207fbf4e14ba747b8d71c243ca559a, type: 2}
   m_CullingMode: 0
@@ -1044,9 +1044,9 @@ MonoBehaviour:
   centralRaySuspicion: 6
   peripheralSuspicionMin: 1
   peripheralSuspicionMax: 2
-  showVisionRays: 1
-  alwaysShowVisionRays: 1
-  updateVisionRaysInEditMode: 1
+  showVisionRays: 0
+  alwaysShowVisionRays: 0
+  updateVisionRaysInEditMode: 0
   visionOrigin: {fileID: 5631576232382475694}
   alignVisionToHead: 1
   visionYawOffset: 0
@@ -1328,7 +1328,7 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &8894753548532880059
+--- !u!114 &8829305531933996590
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1340,12 +1340,12 @@ MonoBehaviour:
   m_Script: {fileID: 0}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DoppelgangerPower
-  cooldown: 20
+  cooldown: 35
   requireAggro: 0
   player: {fileID: 0}
   activationRange: 25
   spawnRange: 12
-  illusionLifetime: 8
+  illusionLifetime: 4
 --- !u!114 &4216188214596980963
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1359,15 +1359,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleTeacherWander
   wanderRadius: 6
-  wanderSpeed: 1.4
-  chaseSpeed: 3.2
-  chaseRange: 18
-  arrivalDistance: 0.4
+  wanderSpeed: 1.1
+  chaseSpeed: 2.8
+  investigateSpeed: 1.9
+  arrivalDistance: 0.6
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  chaseTurnSpeed: 10
+  modelYawOffset: 180
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -3208,7 +3213,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2313637096542515111
 Transform:
   m_ObjectHideFlags: 0

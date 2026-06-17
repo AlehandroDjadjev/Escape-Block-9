@@ -170,7 +170,7 @@ GameObject:
   - component: {fileID: 6457306480378650926}
   - component: {fileID: 2356791337252326169}
   - component: {fileID: 4374703824570057242}
-  - component: {fileID: 4578425171810658064}
+  - component: {fileID: 7219571182051730012}
   - component: {fileID: 3243332182532321194}
   m_Layer: 0
   m_Name: Teacher_bojkata
@@ -199,6 +199,7 @@ Transform:
   - {fileID: 4891435249071991095}
   - {fileID: 5661383774635646750}
   - {fileID: 8357705989271156983}
+  - {fileID: 428001191856564777}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: -180, z: 0}
 --- !u!114 &7808602399196941233
@@ -276,7 +277,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 405229498449493220}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 2e207fbf4e14ba747b8d71c243ca559a, type: 2}
   m_CullingMode: 0
@@ -328,9 +329,9 @@ MonoBehaviour:
   centralRaySuspicion: 6
   peripheralSuspicionMin: 1
   peripheralSuspicionMax: 2
-  showVisionRays: 1
-  alwaysShowVisionRays: 1
-  updateVisionRaysInEditMode: 1
+  showVisionRays: 0
+  alwaysShowVisionRays: 0
+  updateVisionRaysInEditMode: 0
   visionOrigin: {fileID: 8232284830499575594}
   alignVisionToHead: 1
   visionYawOffset: 0
@@ -612,7 +613,7 @@ VideoPlayer:
   m_WaitForFirstFrame: 1
   m_FrameReadyEventEnabled: 0
   m_VideoShaders: []
---- !u!114 &4578425171810658064
+--- !u!114 &7219571182051730012
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -624,13 +625,13 @@ MonoBehaviour:
   m_Script: {fileID: 0}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RulerWhipPower
-  cooldown: 2.5
+  cooldown: 5
   requireAggro: 0
   player: {fileID: 0}
   activationRange: 25
-  reach: 4
+  reach: 3
   coneAngle: 40
-  damage: 25
+  damage: 8
 --- !u!114 &3243332182532321194
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -644,15 +645,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleTeacherWander
   wanderRadius: 6
-  wanderSpeed: 1.4
-  chaseSpeed: 3.2
-  chaseRange: 18
-  arrivalDistance: 0.4
+  wanderSpeed: 1.1
+  chaseSpeed: 2.8
+  investigateSpeed: 1.9
+  arrivalDistance: 0.6
   pickNewTargetEverySeconds: 5
   turnSpeed: 6
+  chaseTurnSpeed: 10
+  modelYawOffset: 180
+  visionRange: 18
+  visionConeAngle: 270
+  eyeHeight: 1.6
+  playerHeadOffset: 1
+  lookAroundDuration: 4
   standingOffset: 0.05
-  raycastFromHeight: 2
-  raycastDistance: 25
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -1372,6 +1378,118 @@ LineRenderer:
   m_UseWorldSpace: 1
   m_Loop: 0
   m_ApplyActiveColorSpace: 1
+--- !u!1 &1838595666345776013
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 428001191856564777}
+  - component: {fileID: 5023862748181986060}
+  - component: {fileID: 5243057458838823785}
+  - component: {fileID: 6662992864121837612}
+  m_Layer: 0
+  m_Name: Ruler
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &428001191856564777
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1838595666345776013}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.6087614, y: 0, z: 0, w: 0.7933533}
+  m_LocalPosition: {x: 0.42, y: 1, z: 0.15}
+  m_LocalScale: {x: 0.06, y: 0.06, z: 0.85}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7758016196815514881}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &5023862748181986060
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1838595666345776013}
+  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!65 &5243057458838823785
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1838595666345776013}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!23 &6662992864121837612
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1838595666345776013}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 1
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &1840487910874004709
 GameObject:
   m_ObjectHideFlags: 0
@@ -3097,7 +3215,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &8357705989271156983
 Transform:
   m_ObjectHideFlags: 0
