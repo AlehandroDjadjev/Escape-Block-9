@@ -53,7 +53,6 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     // next chunk and will gate on setupPhaseComplete the same way.
     private bool setupPhaseComplete = true;
     private bool localPlayerIsKeyHider;
-    private Coroutine setupPhaseRoutine;
     private int localStateSeq;
     private float nextLobbyPingTime;
     private float nextGamePingTime;
@@ -92,6 +91,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     private GameObject roleRevealPanel;
     private Text roleRevealTitle;
     private Text roleRevealSubtitle;
+    private Button roleRevealContinueButton;
 
     // Placement phase (chunk 2a) — Key Hider clicks on the top-down map to choose
     // where the exit key spawns. Teacher Placer just sees a waiting message in this
@@ -103,6 +103,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     private Text placementStatusText;
     private Button placementConfirmButton;
     private Camera placementMapCamera;
+    private Light placementMapLight;
     private RenderTexture placementMapTexture;
     private Vector3? localChosenKeyWorldPos;
     private Vector3? peerChosenKeyWorldPos;
@@ -128,6 +129,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
 
     private GameObject placementTeacherListContent;
     private readonly GameObject[] placementTeacherListItems = new GameObject[TeacherSlots.Length];
+    private readonly RawImage[] placementTeacherPortraits = new RawImage[TeacherSlots.Length];
     private readonly Vector3?[] localTeacherWorldPos = new Vector3?[TeacherSlots.Length];
     private readonly Vector3?[] peerTeacherWorldPos = new Vector3?[TeacherSlots.Length];
     private readonly Image[] placementTeacherMapMarkers = new Image[TeacherSlots.Length];
@@ -321,8 +323,9 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         roleRevealPanel = CreateFullScreenPanel(rootCanvas.transform, "RoleRevealPanel", new Color(0.04f, 0.05f, 0.08f, 0.96f));
         GameObject revealCard = CreatePanel(roleRevealPanel.transform, "RoleRevealCard", panel, new Vector2(0.5f, 0.5f), new Vector2(760f, 320f));
         CreateText(revealCard.transform, "RoleRevealHeader", "YOUR ROLE", font, 24, new Vector2(0.5f, 0.86f), new Vector2(680f, 36f), new Color(0.88f, 0.8f, 0.58f, 1f));
-        roleRevealTitle    = CreateText(revealCard.transform, "RoleRevealTitle",    string.Empty, font, 60, new Vector2(0.5f, 0.55f), new Vector2(700f, 90f), new Color(1f, 0.95f, 0.78f, 1f));
-        roleRevealSubtitle = CreateText(revealCard.transform, "RoleRevealSubtitle", string.Empty, font, 20, new Vector2(0.5f, 0.20f), new Vector2(680f, 80f), new Color(0.85f, 0.9f, 0.82f, 1f));
+        roleRevealTitle    = CreateText(revealCard.transform, "RoleRevealTitle",    string.Empty, font, 60, new Vector2(0.5f, 0.60f), new Vector2(700f, 90f), new Color(1f, 0.95f, 0.78f, 1f));
+        roleRevealSubtitle = CreateText(revealCard.transform, "RoleRevealSubtitle", string.Empty, font, 20, new Vector2(0.5f, 0.30f), new Vector2(680f, 80f), new Color(0.85f, 0.9f, 0.82f, 1f));
+        roleRevealContinueButton = CreateButton(revealCard.transform, "RoleRevealContinue", "Continue", font, new Vector2(0.5f, 0.08f), new Vector2(260f, 56f), gold, OnRoleRevealContinuePressed);
 
         // Placement panel — full-screen top-down map. Built after the reveal so it
         // renders on top. Contains the live RenderTexture of the school, a marker
@@ -1102,58 +1105,83 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         PreSpawnRemotePlayers(generator);
 
         // After the facility is built, run the setup phase: roll roles, show the
-        // reveal, then unlock gameplay. setupPhaseComplete blocks gameplay during it.
-        if (setupPhaseRoutine != null) StopCoroutine(setupPhaseRoutine);
-        setupPhaseRoutine = StartCoroutine(RunSetupPhase());
-    }
-
-    // Both clients compute the role from a deterministic hash of the lobby+map, so
-    // they always agree without an extra round-trip. The chosen slot becomes the Key
-    // Hider; the other player is the Teacher Placer. With one player in the lobby
-    // (e.g. local debugging) the local player defaults to Key Hider so we still
-    // exercise the reveal flow.
-    private bool DetermineLocalRoleIsKeyHider()
-    {
-        if (currentGameStart == null || localMember == null) return true;
-        int playerCount = currentGameStart.players != null ? currentGameStart.players.Length : 0;
-        if (playerCount < 2) return true;
-
-        int hash = MultiplayerJson.DeterministicHash($"role:{currentGameStart.lobbyId}:{currentGameStart.mapId}");
-        int hiderSlot = (Mathf.Abs(hash) % 2) + 1; // slots are 1-indexed
-        return localMember.slot == hiderSlot;
-    }
-
-    private IEnumerator RunSetupPhase()
-    {
+        // reveal, then unlock gameplay. Setting setupPhaseComplete = false
+        // synchronously here (not inside the coroutine) closes a one-frame race
+        // where EnforceLobbyAndGameState would otherwise enable gameplay before
+        // the coroutine's first instruction runs.
         setupPhaseComplete = false;
+        Debug.Log("[SetupPhase] Generation complete — entering setup (role pick + placement).");
+        ShowRoleReveal();
+    }
+
+    // Decide the role and show the reveal panel. The player clicks Continue to move
+    // on (no auto-timer — that was getting missed while juggling two windows).
+    private void ShowRoleReveal()
+    {
         localPlayerIsKeyHider = DetermineLocalRoleIsKeyHider();
+        Debug.Log($"[SetupPhase] Role decided — localPlayerIsKeyHider={localPlayerIsKeyHider}. " +
+                  $"roleRevealPanel={(roleRevealPanel != null ? "ok" : "NULL")}, " +
+                  $"placementPanel={(placementPanel != null ? "ok" : "NULL")}");
+
+        if (overlayPanel != null) overlayPanel.SetActive(false);
+        if (placementPanel != null) placementPanel.SetActive(false);
 
         if (roleRevealPanel != null)
         {
             if (roleRevealTitle != null)
-            {
                 roleRevealTitle.text = localPlayerIsKeyHider ? "KEY HIDER" : "TEACHER PLACER";
-            }
             if (roleRevealSubtitle != null)
-            {
                 roleRevealSubtitle.text = localPlayerIsKeyHider
-                    ? "You will choose where the exit key is hidden in the school."
-                    : "You will place each teacher around the school.";
-            }
-            overlayPanel.SetActive(false);
+                    ? "You hide the exit key. Click Continue, then click on the map to choose its spot."
+                    : "You place the teachers. Click Continue, then drag each teacher onto the map.";
+            roleRevealPanel.transform.SetAsLastSibling(); // ensure it's on top
             roleRevealPanel.SetActive(true);
+        }
+        else
+        {
+            Debug.LogError("[SetupPhase] roleRevealPanel is null — UI not built. Jumping to placement.");
+            BeginPlacementPhase();
+            return;
         }
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+    }
 
-        // Reveal for a few seconds, then hand off to the placement phase.
-        yield return new WaitForSecondsRealtime(3.5f);
-
+    private void OnRoleRevealContinuePressed()
+    {
+        Debug.Log("[SetupPhase] Continue pressed — opening placement panel.");
         if (roleRevealPanel != null) roleRevealPanel.SetActive(false);
-
         BeginPlacementPhase();
-        setupPhaseRoutine = null;
+    }
+
+    // Both clients compute the role from a deterministic hash of the lobby+map, so
+    // they always agree without an extra round-trip. We DON'T rely on `slot` being a
+    // clean 1/2 (it wasn't — both players were coming out as Teacher Placer). Instead
+    // we sort the players' userIds (identical list on both clients), pick one by the
+    // hash, and the local player is the Key Hider iff its userId is the chosen one.
+    // Exactly one player gets it. Single-player falls back to Key Hider.
+    private bool DetermineLocalRoleIsKeyHider()
+    {
+        if (currentGameStart == null || currentGameStart.players == null) return true;
+        var players = currentGameStart.players;
+        if (players.Length < 2) return true;
+
+        int localUserId = currentUser != null ? currentUser.id
+                        : (localMember != null ? localMember.userId : int.MinValue);
+
+        var ids = new List<int>(players.Length);
+        foreach (var p in players) ids.Add(p.userId);
+        ids.Sort();
+
+        int hash = MultiplayerJson.DeterministicHash($"role:{currentGameStart.lobbyId}:{currentGameStart.mapId}");
+        int hiderIndex = Mathf.Abs(hash) % ids.Count;
+        int hiderUserId = ids[hiderIndex];
+
+        bool isHider = localUserId == hiderUserId;
+        Debug.Log($"[SetupPhase] Role calc — localUserId={localUserId}, hiderUserId={hiderUserId}, " +
+                  $"ids=[{string.Join(",", ids)}], isHider={isHider}");
+        return isHider;
     }
 
     // Wire up the top-down camera + RT and show the placement panel. Both players
@@ -1165,11 +1193,34 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         peerChosenKeyWorldPos = null;
         localPlacementConfirmed = false;
         peerPlacementConfirmed = false;
+        for (int i = 0; i < TeacherSlots.Length; i++)
+        {
+            localTeacherWorldPos[i] = null;
+            peerTeacherWorldPos[i] = null;
+            // Teachers now exist in the scene, so (re)load each portrait — at Awake
+            // they may not have spawned yet and came back null.
+            if (placementTeacherListItems[i] != null) placementTeacherListItems[i].SetActive(true);
+            if (placementTeacherPortraits[i] != null)
+            {
+                Texture2D tex = LoadTeacherPortrait(TeacherSlots[i].slug);
+                placementTeacherPortraits[i].texture = tex;
+                placementTeacherPortraits[i].color = tex != null ? Color.white : new Color(0.3f, 0.3f, 0.35f, 1f);
+            }
+        }
 
         CreatePlacementMapCamera();
         if (placementMapMarker != null) placementMapMarker.gameObject.SetActive(false);
 
-        if (placementPanel != null) placementPanel.SetActive(true);
+        if (placementPanel != null)
+        {
+            placementPanel.transform.SetAsLastSibling(); // render above everything
+            placementPanel.SetActive(true);
+            Debug.Log("[SetupPhase] Placement panel activated.");
+        }
+        else
+        {
+            Debug.LogError("[SetupPhase] placementPanel is null — cannot show map UI.");
+        }
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
@@ -1232,20 +1283,44 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             placementMapCamera = camGo.AddComponent<Camera>();
         }
 
-        Vector3 center = placementMapWorldBounds.center;
-        float height = placementMapWorldBounds.size.y + 20f;
-        placementMapCamera.transform.position = new Vector3(center.x, center.y + height, center.z);
+        Bounds b = placementMapWorldBounds;
+        Vector3 center = b.center;
+        float camY = b.max.y + 10f;
+        placementMapCamera.transform.position = new Vector3(center.x, camY, center.z);
         placementMapCamera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
         placementMapCamera.orthographic = true;
         // Pick the larger horizontal extent so the whole school fits.
-        float halfExtent = Mathf.Max(placementMapWorldBounds.extents.x, placementMapWorldBounds.extents.z) + 1f;
+        float halfExtent = Mathf.Max(b.extents.x, b.extents.z) + 1f;
         placementMapCamera.orthographicSize = halfExtent;
-        placementMapCamera.nearClipPlane = 0.3f;
-        placementMapCamera.farClipPlane = height * 2f + 50f;
+
+        // "See through the ceiling": clip away the top slice of the building so the
+        // camera looks past the roof/ceiling slab down into the rooms. The near plane
+        // starts just below the highest point; clipDown controls how much of the top
+        // is removed (enough to clear the ceiling, not so much we lose the walls).
+        float clipDown = Mathf.Clamp(b.size.y * 0.35f, 1.0f, 4.0f);
+        placementMapCamera.nearClipPlane = (camY - b.max.y) + clipDown;
+        placementMapCamera.farClipPlane = (camY - b.min.y) + 5f;
         placementMapCamera.clearFlags = CameraClearFlags.SolidColor;
-        placementMapCamera.backgroundColor = new Color(0.05f, 0.05f, 0.08f, 1f);
+        placementMapCamera.backgroundColor = new Color(0.10f, 0.11f, 0.14f, 1f);
         placementMapCamera.cullingMask = ~0;
         placementMapCamera.targetTexture = placementMapTexture;
+
+        // A dedicated bright light pointing straight down so the interiors aren't a
+        // dark blob — the level lighting alone is a night/horror palette and reads as
+        // black from above. Parented to the camera, only alive during placement.
+        if (placementMapLight == null)
+        {
+            GameObject lightGo = new GameObject("PlacementMapLight");
+            placementMapLight = lightGo.AddComponent<Light>();
+            placementMapLight.type = LightType.Directional;
+        }
+        placementMapLight.transform.position = new Vector3(center.x, camY, center.z);
+        placementMapLight.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        placementMapLight.intensity = 1.6f;
+        placementMapLight.color = Color.white;
+        placementMapLight.shadows = LightShadows.None;
+        placementMapLight.cullingMask = ~0;
+        placementMapLight.gameObject.SetActive(true);
 
         if (placementMapImage != null)
         {
@@ -1476,6 +1551,8 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
 
         if (placementPanel != null) placementPanel.SetActive(false);
         if (placementMapCamera != null) placementMapCamera.targetTexture = null;
+        // Kill the map-only light so it doesn't blow out the actual gameplay lighting.
+        if (placementMapLight != null) placementMapLight.gameObject.SetActive(false);
         setupPhaseComplete = true;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -1538,7 +1615,9 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         portraitGo.transform.SetParent(item.transform, false);
         RawImage portraitImage = portraitGo.GetComponent<RawImage>();
         portraitImage.texture = portrait;
+        portraitImage.color = portrait != null ? Color.white : new Color(0.3f, 0.3f, 0.35f, 1f);
         portraitImage.raycastTarget = false;
+        placementTeacherPortraits[index] = portraitImage;
         RectTransform portraitRect = portraitGo.GetComponent<RectTransform>();
         portraitRect.anchorMin = new Vector2(0f, 0.5f);
         portraitRect.anchorMax = new Vector2(0f, 0.5f);
@@ -1562,6 +1641,15 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
 
     private static Texture2D LoadTeacherPortrait(string slug)
     {
+        // Primary path (works in builds too): the teacher GameObjects are already in
+        // the scene, each with a PlaneHeadImage holding its face photo. Reuse it.
+        GameObject teacherGo = GameObject.Find($"Teacher_{slug}");
+        if (teacherGo != null)
+        {
+            var headImage = teacherGo.GetComponentInChildren<PlaneHeadImage>(true);
+            if (headImage != null && headImage.HeadImage != null) return headImage.HeadImage;
+        }
+
 #if UNITY_EDITOR
         foreach (string ext in new[] { ".png", ".jpg", ".jpeg" })
         {
@@ -1721,13 +1809,16 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             teacherBySlug[slug] = teacher;
         }
 
+        int moved = 0;
         for (int i = 0; i < TeacherSlots.Length; i++)
         {
             if (!positionsByIndex[i].HasValue) continue;
             if (!teacherBySlug.TryGetValue(TeacherSlots[i].slug, out var teacher)) continue;
             teacher.transform.position = positionsByIndex[i].Value;
             teacher.SetNetworkControlled(localPlayerIsKeyHider);
+            moved++;
         }
+        Debug.Log($"[SetupPhase] Teachers moved to placed positions: {moved}/{TeacherSlots.Length}.");
     }
 
     private GameObject SpawnKeyAt(Vector3 worldPos)
@@ -1739,11 +1830,21 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             spawnedKeyPickup = null;
         }
 
-        GameObject keyPrefab = null;
+        // Remove any key the procedural generator already dropped, so there's exactly
+        // one key — at the spot the Key Hider chose.
+        foreach (var go in FindObjectsByType<GameObject>(FindObjectsSortMode.None))
+        {
+            if (go != null && go.name.StartsWith("KeyItem", StringComparison.Ordinal))
+            {
+                DestroyUnityObject(go);
+            }
+        }
+
+        GameObject keyPrefab = Resources.Load<GameObject>("KeyItem");
 #if UNITY_EDITOR
-        keyPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/arhitektura/KeyItem.prefab");
+        if (keyPrefab == null)
+            keyPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/arhitektura/KeyItem.prefab");
 #endif
-        if (keyPrefab == null) keyPrefab = Resources.Load<GameObject>("KeyItem");
         if (keyPrefab == null)
         {
             Debug.LogWarning("[SetupPhase] KeyItem prefab not found; key will not spawn.");
@@ -1751,7 +1852,9 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         }
 
         spawnedKeyObject = Instantiate(keyPrefab, worldPos, Quaternion.identity);
+        spawnedKeyObject.name = "KeyItem";
         spawnedKeyPickup = spawnedKeyObject.GetComponent<ItemPickup>();
+        Debug.Log($"[SetupPhase] Key spawned at {worldPos}.");
         return spawnedKeyObject;
     }
 
@@ -1832,11 +1935,6 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         currentGameStart = null;
         localStateSeq = 0;
 
-        if (setupPhaseRoutine != null)
-        {
-            StopCoroutine(setupPhaseRoutine);
-            setupPhaseRoutine = null;
-        }
         setupPhaseComplete = true;
         if (roleRevealPanel != null) roleRevealPanel.SetActive(false);
         if (placementPanel != null) placementPanel.SetActive(false);
@@ -1853,6 +1951,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             placementTeacherMapMarkers[i] = null;
         }
         if (placementMapCamera != null) placementMapCamera.targetTexture = null;
+        if (placementMapLight != null) placementMapLight.gameObject.SetActive(false);
 
         if (gameSocket != null)
         {
