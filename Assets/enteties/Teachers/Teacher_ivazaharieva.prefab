@@ -3057,7 +3057,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 7531312948631749980}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: f678e31f61f9161498dbe3621afd8007, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TeacherSprintPower
   cooldown: 18

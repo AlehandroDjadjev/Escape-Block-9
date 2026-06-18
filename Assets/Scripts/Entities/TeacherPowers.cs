@@ -63,6 +63,21 @@ public abstract class TeacherPower : MonoBehaviour
     /// <summary>Return true when the power fires (starts cooldown).</summary>
     protected abstract bool TryActivate();
 
+    protected bool DamagePlayer(int amount, string source)
+    {
+        if (player == null)
+        {
+            FindPlayer();
+        }
+
+        if (player == null)
+        {
+            return false;
+        }
+
+        return PlayerHealth.TryDamage(player, amount, source, gameObject);
+    }
+
     // Pop a bright sphere + light above the teacher's head when their power triggers,
     // and queue an on-screen toast so you can see firing without opening the console.
     private void ShowPowerFlash()
@@ -121,6 +136,7 @@ public partial class MedusaStarePower : TeacherPower
     [Header("Medusa Stare")]
     [SerializeField] private float lookConeAngle = 28f;
     [SerializeField] private float freezeDuration = 1.2f;
+    [SerializeField] private int gazeDamage = 18;
     [SerializeField] private Camera playerCamera;
     [SerializeField] private Renderer eyeGlowRenderer;
     [SerializeField] private Color glowColor = new Color(1f, 0.85f, 0.1f);
@@ -132,6 +148,7 @@ public partial class MedusaStarePower : TeacherPower
             playerCamera = player.GetComponentInChildren<Camera>();
         cooldown = 10f;
         freezeDuration = 1.2f;
+        gazeDamage = 18;
     }
 
     protected override bool TryActivate()
@@ -153,6 +170,7 @@ public partial class MedusaStarePower : TeacherPower
     private IEnumerator FreezePlayerRoutine()
     {
         SetEyeGlow(true);
+        DamagePlayer(gazeDamage, "Medusa stare");
         FirstPersonController fpc = player.GetComponent<FirstPersonController>();
         if (fpc != null) fpc.enabled = false;
         yield return new WaitForSeconds(freezeDuration);
@@ -180,6 +198,8 @@ public partial class WallClimbPower : TeacherPower
     [Header("Wall Climb")]
     [SerializeField] private float verticalReach = 4f;
     [SerializeField] private float climbDuration = 2f;
+    [SerializeField] private float pounceRange = 2.1f;
+    [SerializeField] private int pounceDamage = 14;
 
     protected override void Awake() { base.Awake(); cooldown = 15f; }
 
@@ -204,6 +224,11 @@ public partial class WallClimbPower : TeacherPower
             transform.position = Vector3.Lerp(start, end, t);
             yield return null;
         }
+
+        if (player != null && Vector3.Distance(transform.position, player.position) <= pounceRange)
+        {
+            DamagePlayer(pounceDamage, "Wall climb pounce");
+        }
     }
 }
 
@@ -215,9 +240,10 @@ public partial class TeacherSprintPower : TeacherPower
     [Header("Teacher Sprint")]
     [SerializeField] private float sprintMultiplier = 1.5f;
     [SerializeField] private float sprintDuration = 3f;
+    [SerializeField] private float sprintHitRange = 1.35f;
+    [SerializeField] private int sprintHitDamage = 25;
 
     private EntityCinemachineDollyFollower dollyFollower;
-    private float originalSpeed;
 
     protected override void Awake()
     {
@@ -226,21 +252,37 @@ public partial class TeacherSprintPower : TeacherPower
         cooldown = 18f;
         sprintMultiplier = 1.5f;
         sprintDuration = 3f;
+        sprintHitDamage = 25;
     }
 
     protected override bool TryActivate()
     {
-        if (dollyFollower == null) return false;
+        if (wander == null && dollyFollower == null) return false;
         StartCoroutine(SprintRoutine());
         return true;
     }
 
     private IEnumerator SprintRoutine()
     {
-        // TODO: integrate with EntityCinemachineDollyFollower's moveSpeed if it exposes it.
-        // For now we just flag-log; you can wire moveSpeed change in the dolly follower script.
         Debug.Log($"[TeacherSprint] {name} sprinting for {sprintDuration}s @ x{sprintMultiplier}");
-        yield return new WaitForSeconds(sprintDuration);
+        if (wander != null)
+        {
+            wander.ApplyTemporarySpeedMultiplier(sprintMultiplier, sprintDuration);
+        }
+
+        bool dealtImpactDamage = false;
+        float endAt = Time.time + sprintDuration;
+        while (Time.time < endAt)
+        {
+            if (!dealtImpactDamage && player != null &&
+                Vector3.Distance(transform.position, player.position) <= sprintHitRange)
+            {
+                dealtImpactDamage = DamagePlayer(sprintHitDamage, "Teacher sprint impact");
+            }
+
+            yield return null;
+        }
+
         Debug.Log($"[TeacherSprint] {name} back to normal speed");
     }
 }
@@ -260,6 +302,7 @@ public partial class CameraHijackPower : TeacherPower
     [SerializeField] private float laserSpeed = 28f;
     [SerializeField] private int laserCount = 2;
     [SerializeField] private float laserEyeOffset = 0.12f;
+    [SerializeField] private int laserDamage = 12;
 
     // Local cooldown gate that the base class can't accidentally bypass: even if
     // anything else fires TryActivate, this clamp guarantees ≥ 2.0 s between volleys.
@@ -272,6 +315,7 @@ public partial class CameraHijackPower : TeacherPower
         activationRange = 22f;
         cooldown = VolleyInterval;
         laserCount = 2;
+        laserDamage = 12;
     }
 
     protected override bool TryActivate()
@@ -302,7 +346,8 @@ public partial class CameraHijackPower : TeacherPower
 
             var bolt = GameObject.CreatePrimitive(PrimitiveType.Cube);
             bolt.name = "EyeLaser";
-            Destroy(bolt.GetComponent<Collider>());
+            Collider collider = bolt.GetComponent<Collider>();
+            if (collider != null) collider.isTrigger = true;
             bolt.transform.position = origin;
             bolt.transform.rotation = Quaternion.LookRotation(toPlayer);
             bolt.transform.localScale = new Vector3(0.1f, 0.1f, 0.4f);
@@ -317,7 +362,11 @@ public partial class CameraHijackPower : TeacherPower
 
             var rb = bolt.AddComponent<Rigidbody>();
             rb.useGravity = false;
+            rb.isKinematic = false;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.linearVelocity = toPlayer * laserSpeed;
+            var damage = bolt.AddComponent<TeacherProjectileDamage>();
+            damage.Configure(laserDamage, "Camera eye laser", gameObject);
             Destroy(bolt, 1.2f);
         }
     }
@@ -388,7 +437,6 @@ public partial class RulerWhipPower : TeacherPower
         float angle = Vector3.Angle(transform.forward, toPlayer);
         if (angle > coneAngle / 2f) return false;
 
-        Debug.Log($"[RulerWhip] {name} whipped player for {damage} damage");
         if (activeSwing != null) StopCoroutine(activeSwing);
         activeSwing = StartCoroutine(SwingRulerRoutine());
         return true;
@@ -407,6 +455,13 @@ public partial class RulerWhipPower : TeacherPower
             ruler.localRotation = Quaternion.Slerp(rulerRestRotation, swung, t);
             yield return null;
         }
+
+        if (IsPlayerInWhipArc())
+        {
+            Debug.Log($"[RulerWhip] {name} whipped player for {damage} damage");
+            DamagePlayer(damage, "Ruler whip");
+        }
+
         t = 0f;
         while (t < 1f)
         {
@@ -416,6 +471,15 @@ public partial class RulerWhipPower : TeacherPower
         }
         ruler.localRotation = rulerRestRotation;
         activeSwing = null;
+    }
+
+    private bool IsPlayerInWhipArc()
+    {
+        if (player == null) return false;
+        Vector3 toPlayer = player.position - transform.position;
+        if (toPlayer.magnitude > reach) return false;
+        float angle = Vector3.Angle(transform.forward, toPlayer);
+        return angle <= coneAngle / 2f;
     }
 }
 
@@ -428,6 +492,7 @@ public partial class ChalkStormPower : TeacherPower
     [SerializeField] private int chalkCount = 3;
     [SerializeField] private float chalkSpeed = 30f;
     [SerializeField] private float spreadAngle = 4f;
+    [SerializeField] private int chalkDamage = 10;
     [SerializeField] private GameObject chalkProjectilePrefab;
 
     protected override void Awake()
@@ -437,6 +502,7 @@ public partial class ChalkStormPower : TeacherPower
         chalkCount = 3;
         chalkSpeed = 30f;
         spreadAngle = 4f;
+        chalkDamage = 10;
     }
 
     protected override bool TryActivate()
@@ -462,7 +528,8 @@ public partial class ChalkStormPower : TeacherPower
                 chalk = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 // Strip the default cube collider — it makes the chalk bounce off walls
                 // and even the teacher's own body, killing momentum on the first frame.
-                Destroy(chalk.GetComponent<Collider>());
+                Collider collider = chalk.GetComponent<Collider>();
+                if (collider != null) collider.isTrigger = true;
                 chalk.transform.localScale = new Vector3(0.22f, 0.22f, 0.55f);
                 chalk.transform.position = chest;
                 chalk.transform.rotation = Quaternion.LookRotation(dir);
@@ -471,6 +538,8 @@ public partial class ChalkStormPower : TeacherPower
                 rend.material.EnableKeyword("_EMISSION");
                 rend.material.SetColor("_EmissionColor", Color.white * 2.5f);
             }
+            Collider chalkCollider = chalk.GetComponent<Collider>();
+            if (chalkCollider != null) chalkCollider.isTrigger = true;
             Rigidbody rb = chalk.GetComponent<Rigidbody>();
             if (rb == null) rb = chalk.AddComponent<Rigidbody>();
             rb.useGravity = false;
@@ -478,6 +547,9 @@ public partial class ChalkStormPower : TeacherPower
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             rb.linearVelocity = dir * chalkSpeed;
+            TeacherProjectileDamage projectileDamage = chalk.GetComponent<TeacherProjectileDamage>();
+            if (projectileDamage == null) projectileDamage = chalk.AddComponent<TeacherProjectileDamage>();
+            projectileDamage.Configure(chalkDamage, "Chalk storm", gameObject);
             Destroy(chalk, 1.5f);
         }
         Debug.Log($"[ChalkStorm] {name} fired {chalkCount} chalks");
@@ -495,6 +567,8 @@ public partial class DetentionTrapPower : TeacherPower
     [SerializeField] private float trapRadius = 1.0f;
     [SerializeField] private float trapLifetime = 15f;
     [SerializeField] private float slowDuration = 2.5f;
+    [SerializeField] private int trapDamage = 8;
+    [SerializeField] private float trapDamageInterval = 1f;
 
     protected override void Awake()
     {
@@ -503,6 +577,8 @@ public partial class DetentionTrapPower : TeacherPower
         requireAggro = false;
         trapLifetime = 15f;
         slowDuration = 2.5f;
+        trapDamage = 8;
+        trapDamageInterval = 1f;
     }
 
     protected override bool TryActivate()
@@ -517,6 +593,8 @@ public partial class DetentionTrapPower : TeacherPower
         col.isTrigger = true;
         DetentionTrapZone zone = trap.AddComponent<DetentionTrapZone>();
         zone.slowDuration = slowDuration;
+        zone.damage = trapDamage;
+        zone.damageInterval = trapDamageInterval;
         Destroy(trap, trapLifetime);
         Debug.Log($"[DetentionTrap] {name} dropped a trap");
         return true;
@@ -526,12 +604,32 @@ public partial class DetentionTrapPower : TeacherPower
 public class DetentionTrapZone : MonoBehaviour
 {
     public float slowDuration = 5f;
+    public int damage = 8;
+    public float damageInterval = 1f;
+    private float nextDamageTime;
+
     private void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag("Player")) return;
+        Damage(other);
         Debug.Log("[DetentionTrap] Player stepped in a trap → slow!");
         // TODO: apply slow to player. e.g.:
         //   other.GetComponent<FirstPersonController>()?.ApplySlow(slowDuration);
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (!other.CompareTag("Player")) return;
+        if (Time.time < nextDamageTime) return;
+        Damage(other);
+    }
+
+    private void Damage(Collider other)
+    {
+        if (PlayerHealth.TryDamage(other, damage, "Detention trap", gameObject))
+        {
+            nextDamageTime = Time.time + Mathf.Max(0.1f, damageInterval);
+        }
     }
 }
 
@@ -544,12 +642,14 @@ public partial class DoppelgangerPower : TeacherPower
     [Header("Doppelganger")]
     [SerializeField] private float spawnRange = 12f;
     [SerializeField] private float illusionLifetime = 4f;
+    [SerializeField] private int frightDamage = 10;
 
     protected override void Awake()
     {
         base.Awake();
         cooldown = 35f;
         illusionLifetime = 4f;
+        frightDamage = 10;
     }
 
     protected override bool TryActivate()
@@ -565,6 +665,7 @@ public partial class DoppelgangerPower : TeacherPower
         var follower = copy.GetComponent<EntityCinemachineDollyFollower>();
         if (follower != null) Destroy(follower);
         Destroy(copy, illusionLifetime);
+        DamagePlayer(frightDamage, "Doppelganger fright");
         Debug.Log($"[Doppelganger] {name} spawned an illusion @ {pos}");
         return true;
     }
@@ -580,6 +681,8 @@ public partial class SealedBuildingPower : TeacherPower
     [SerializeField] private float lockdownDuration = 12f;
     [SerializeField] private bool oncePerMatch = true;
     [SerializeField] private AudioClip lockdownSiren;
+    [SerializeField] private int lockdownDamagePerTick = 6;
+    [SerializeField] private float lockdownDamageInterval = 3f;
 
     private bool hasFired;
 
@@ -592,6 +695,8 @@ public partial class SealedBuildingPower : TeacherPower
         cooldown = 99999f;
         activationRange = 9999f;
         lockdownDuration = 12f;
+        lockdownDamagePerTick = 6;
+        lockdownDamageInterval = 3f;
     }
 
     protected override bool TryActivate()
@@ -604,13 +709,25 @@ public partial class SealedBuildingPower : TeacherPower
         if (lockdownSiren != null) AudioSource.PlayClipAtPoint(lockdownSiren, transform.position, 1f);
         Debug.Log($"[SealedBuilding] LOCKDOWN — {doors.Length} doors disabled for {lockdownDuration}s");
 
-        StartCoroutine(EndLockdown(doors));
+        StartCoroutine(LockdownRoutine(doors));
         return true;
     }
 
-    private IEnumerator EndLockdown(DoorController[] doors)
+    private IEnumerator LockdownRoutine(DoorController[] doors)
     {
-        yield return new WaitForSeconds(lockdownDuration);
+        float endAt = Time.time + lockdownDuration;
+        float nextDamageAt = Time.time;
+        while (Time.time < endAt)
+        {
+            if (Time.time >= nextDamageAt)
+            {
+                DamagePlayer(lockdownDamagePerTick, "Building lockdown");
+                nextDamageAt = Time.time + Mathf.Max(0.1f, lockdownDamageInterval);
+            }
+
+            yield return null;
+        }
+
         foreach (var d in doors) if (d != null) d.enabled = true;
         Debug.Log($"[SealedBuilding] Lockdown ended.");
     }
@@ -624,8 +741,11 @@ public partial class XRayVisionPower : TeacherPower
 {
     [Header("X-Ray Vision")]
     [SerializeField] private float sightRadius = 12f;
+    [SerializeField] private int xRayDamage = 4;
+    [SerializeField] private float xRayDamageInterval = 1.5f;
 
     public Vector3 LastSeenPlayerPosition { get; private set; }
+    private float nextDamageTime;
 
     // The whole point of X-Ray is to see through walls.
     protected override bool RequiresLineOfSight => false;
@@ -637,6 +757,11 @@ public partial class XRayVisionPower : TeacherPower
         float d = Vector3.Distance(transform.position, player.position);
         if (d > sightRadius) return false;
         LastSeenPlayerPosition = player.position;
+        if (Time.time >= nextDamageTime)
+        {
+            DamagePlayer(xRayDamage, "X-ray stare");
+            nextDamageTime = Time.time + Mathf.Max(0.1f, xRayDamageInterval);
+        }
         // Note: no need to "do" anything visible — the AI uses this position to navigate.
         return true;
     }
@@ -648,3 +773,46 @@ public partial class XRayVisionPower : TeacherPower
     }
 }
 
+public class TeacherProjectileDamage : MonoBehaviour
+{
+    private int damage = 10;
+    private string source = "Teacher projectile";
+    private GameObject instigator;
+    private bool hasHitPlayer;
+
+    public void Configure(int amount, string damageSource, GameObject damageInstigator)
+    {
+        damage = Mathf.Max(0, amount);
+        source = string.IsNullOrWhiteSpace(damageSource) ? source : damageSource;
+        instigator = damageInstigator;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        TryDamage(other);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        TryDamage(collision.collider);
+    }
+
+    private void TryDamage(Collider other)
+    {
+        if (hasHitPlayer || other == null)
+        {
+            return;
+        }
+
+        if (instigator != null && other.transform.IsChildOf(instigator.transform))
+        {
+            return;
+        }
+
+        if (PlayerHealth.TryDamage(other, damage, source, instigator))
+        {
+            hasHitPlayer = true;
+            Destroy(gameObject);
+        }
+    }
+}

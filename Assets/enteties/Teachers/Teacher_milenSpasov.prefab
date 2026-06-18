@@ -2706,7 +2706,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 6344532144623558484}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: feee585ca14df0548839bda39c12a1c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DetentionTrapPower
   cooldown: 10
