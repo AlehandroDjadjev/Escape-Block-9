@@ -25,17 +25,17 @@ namespace EscapeBlock9.ProcGen.Runtime
             Material grimeMaterial = CreateMaterial(
                 GrimeMaterialResource,
                 OverlayShaderName,
-                new Color(0.095f, 0.004f, 0.012f, 0.64f),
+                new Color(0.11f, 0.095f, 0.075f, 0.48f),
                 "RuntimeHorrorGrime");
-            Material veinMaterial = CreateMaterial(
+            Material seepMaterial = CreateMaterial(
                 VeinMaterialResource,
                 VeinShaderName,
-                new Color(0.72f, 0.018f, 0.004f, 0.46f),
-                "RuntimeHorrorVeins");
+                new Color(0.22f, 0.26f, 0.18f, 0.28f),
+                "RuntimeHorrorSeep");
             Material shadowMaterial = CreateMaterial(
                 ShadowMaterialResource,
                 OverlayShaderName,
-                new Color(0.005f, 0.006f, 0.008f, 0.78f),
+                new Color(0.02f, 0.024f, 0.03f, 0.58f),
                 "RuntimeHorrorShadow");
 
             foreach (KeyValuePair<int, Tile> pair in instanceTiles)
@@ -52,7 +52,7 @@ namespace EscapeBlock9.ProcGen.Runtime
                     continue;
                 }
 
-                ApplyTileOverlays(tile, bounds, random, grimeMaterial, veinMaterial, shadowMaterial);
+                ApplyTileOverlays(tile, bounds, random, grimeMaterial, seepMaterial, shadowMaterial);
             }
 
             AddWorldFogAndColor();
@@ -93,25 +93,28 @@ namespace EscapeBlock9.ProcGen.Runtime
                     }
 
                     Color original = ReadMaterialColor(material);
-                    float sicklyNoise = 0.75f + (float)random.NextDouble() * 0.35f;
-                    Color target = new Color(
-                        original.r * 0.33f + 0.055f,
-                        original.g * 0.24f + 0.025f,
-                        original.b * 0.22f + 0.035f,
+                    float sicklyNoise = 0.82f + (float)random.NextDouble() * 0.22f;
+                    Color coldBase = new Color(
+                        original.r * 0.32f + 0.05f,
+                        original.g * 0.34f + 0.06f,
+                        original.b * 0.4f + 0.07f,
                         original.a);
-                    target = Color.Lerp(target, new Color(0.18f, 0.035f, 0.055f, original.a), 0.22f * architecturalWeight);
+                    Color mildewTint = new Color(0.16f, 0.18f, 0.14f, original.a);
+                    Color steelTint = new Color(0.11f, 0.13f, 0.16f, original.a);
+                    Color target = Color.Lerp(coldBase, steelTint, 0.45f * architecturalWeight);
+                    target = Color.Lerp(target, mildewTint, 0.3f + ((float)random.NextDouble() * 0.18f));
                     target *= sicklyNoise;
                     target.a = original.a;
-                    WriteMaterialColor(material, Color.Lerp(original, target, Mathf.Clamp01(0.82f * architecturalWeight)));
+                    WriteMaterialColor(material, Color.Lerp(original, target, Mathf.Clamp01(0.86f * architecturalWeight)));
 
                     if (material.HasProperty("_Smoothness"))
                     {
-                        material.SetFloat("_Smoothness", Mathf.Lerp(material.GetFloat("_Smoothness"), 0.82f, 0.45f * architecturalWeight));
+                        material.SetFloat("_Smoothness", Mathf.Lerp(material.GetFloat("_Smoothness"), 0.58f, 0.42f * architecturalWeight));
                     }
 
                     if (material.HasProperty("_Metallic"))
                     {
-                        material.SetFloat("_Metallic", Mathf.Lerp(material.GetFloat("_Metallic"), 0.08f, 0.35f * architecturalWeight));
+                        material.SetFloat("_Metallic", Mathf.Lerp(material.GetFloat("_Metallic"), 0.12f, 0.28f * architecturalWeight));
                     }
                 }
 
@@ -203,24 +206,28 @@ namespace EscapeBlock9.ProcGen.Runtime
             Bounds bounds,
             System.Random random,
             Material grimeMaterial,
-            Material veinMaterial,
+            Material seepMaterial,
             Material shadowMaterial)
         {
             int count = ResolveOverlayCount(tile.Category);
             for (int i = 0; i < count; i++)
             {
                 float pick = (float)random.NextDouble();
-                if (pick < 0.46f)
+                if (pick < 0.34f)
                 {
                     AddWallStain(tile.transform, bounds, random, grimeMaterial, i);
                 }
-                else if (pick < 0.78f)
+                else if (pick < 0.58f)
                 {
                     AddFloorShadow(tile.transform, bounds, random, shadowMaterial, i);
                 }
+                else if (pick < 0.82f)
+                {
+                    AddCeilingLeak(tile.transform, bounds, random, seepMaterial, i);
+                }
                 else
                 {
-                    AddVein(tile.transform, bounds, random, veinMaterial, i);
+                    AddCornerShadow(tile.transform, bounds, random, shadowMaterial, i);
                 }
             }
         }
@@ -230,16 +237,16 @@ namespace EscapeBlock9.ProcGen.Runtime
             switch (category)
             {
                 case TileCategory.Room:
-                    return 4;
+                    return 6;
                 case TileCategory.Special:
                 case TileCategory.Exit:
-                    return 5;
+                    return 7;
                 case TileCategory.Stair:
-                    return 3;
+                    return 4;
                 case TileCategory.Corridor:
-                    return 2;
+                    return 3;
                 default:
-                    return 1;
+                    return 2;
             }
         }
 
@@ -250,32 +257,52 @@ namespace EscapeBlock9.ProcGen.Runtime
             float y = Mathf.Lerp(bounds.min.y + 0.8f, bounds.max.y - 0.45f, (float)random.NextDouble());
             float x = xSide ? (maxSide ? bounds.max.x - 0.018f : bounds.min.x + 0.018f) : Mathf.Lerp(bounds.min.x, bounds.max.x, (float)random.NextDouble());
             float z = !xSide ? (maxSide ? bounds.max.z - 0.018f : bounds.min.z + 0.018f) : Mathf.Lerp(bounds.min.z, bounds.max.z, (float)random.NextDouble());
-            float width = Mathf.Lerp(0.7f, Mathf.Max(0.8f, xSide ? bounds.size.z * 0.34f : bounds.size.x * 0.34f), (float)random.NextDouble());
-            float height = Mathf.Lerp(0.65f, Mathf.Max(0.7f, bounds.size.y * 0.58f), (float)random.NextDouble());
-            Vector3 scale = xSide ? new Vector3(0.035f, height, width) : new Vector3(width, height, 0.035f);
-            AddPrimitive(parent, $"HorrorWallStain_{index}", new Vector3(x, y, z), Quaternion.identity, scale, material);
+            float width = Mathf.Lerp(0.85f, Mathf.Max(1.1f, xSide ? bounds.size.z * 0.42f : bounds.size.x * 0.42f), (float)random.NextDouble());
+            float height = Mathf.Lerp(0.85f, Mathf.Max(0.9f, bounds.size.y * 0.42f), (float)random.NextDouble());
+            Vector3 scale = xSide ? new Vector3(0.03f, height, width) : new Vector3(width, height, 0.03f);
+            Quaternion rotation = Quaternion.Euler(
+                (float)random.NextDouble() * 10f - 5f,
+                xSide ? 0f : 0f,
+                (float)random.NextDouble() * 8f - 4f);
+            AddPrimitive(parent, $"HorrorWallStain_{index}", new Vector3(x, y, z), rotation, scale, material);
         }
 
         private static void AddFloorShadow(Transform parent, Bounds bounds, System.Random random, Material material, int index)
         {
             float x = Mathf.Lerp(bounds.min.x + 0.45f, bounds.max.x - 0.45f, (float)random.NextDouble());
             float z = Mathf.Lerp(bounds.min.z + 0.45f, bounds.max.z - 0.45f, (float)random.NextDouble());
-            float sx = Mathf.Lerp(0.75f, Mathf.Max(0.9f, bounds.size.x * 0.5f), (float)random.NextDouble());
-            float sz = Mathf.Lerp(0.45f, Mathf.Max(0.7f, bounds.size.z * 0.34f), (float)random.NextDouble());
+            float sx = Mathf.Lerp(0.95f, Mathf.Max(1.2f, bounds.size.x * 0.56f), (float)random.NextDouble());
+            float sz = Mathf.Lerp(0.75f, Mathf.Max(0.95f, bounds.size.z * 0.44f), (float)random.NextDouble());
             Quaternion rotation = Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f);
             AddPrimitive(parent, $"HorrorFloorShadow_{index}", new Vector3(x, bounds.min.y + 0.026f, z), rotation, new Vector3(sx, 0.035f, sz), material);
         }
 
-        private static void AddVein(Transform parent, Bounds bounds, System.Random random, Material material, int index)
+        private static void AddCeilingLeak(Transform parent, Bounds bounds, System.Random random, Material material, int index)
         {
-            bool xAxis = random.NextDouble() > 0.5;
-            float x = Mathf.Lerp(bounds.min.x + 0.3f, bounds.max.x - 0.3f, (float)random.NextDouble());
-            float z = Mathf.Lerp(bounds.min.z + 0.3f, bounds.max.z - 0.3f, (float)random.NextDouble());
-            float y = Mathf.Lerp(bounds.min.y + 0.12f, bounds.max.y - 0.35f, (float)random.NextDouble());
-            float length = Mathf.Lerp(1.2f, Mathf.Max(1.3f, (xAxis ? bounds.size.x : bounds.size.z) * 0.42f), (float)random.NextDouble());
-            Vector3 scale = xAxis ? new Vector3(length, 0.025f, 0.055f) : new Vector3(0.055f, 0.025f, length);
-            Quaternion rotation = Quaternion.Euler((float)random.NextDouble() * 10f - 5f, (float)random.NextDouble() * 18f - 9f, (float)random.NextDouble() * 8f - 4f);
-            AddPrimitive(parent, $"HorrorVein_{index}", new Vector3(x, y, z), rotation, scale, material);
+            float x = Mathf.Lerp(bounds.min.x + 0.35f, bounds.max.x - 0.35f, (float)random.NextDouble());
+            float z = Mathf.Lerp(bounds.min.z + 0.35f, bounds.max.z - 0.35f, (float)random.NextDouble());
+            float width = Mathf.Lerp(0.7f, Mathf.Max(0.8f, bounds.size.x * 0.28f), (float)random.NextDouble());
+            float depth = Mathf.Lerp(0.5f, Mathf.Max(0.65f, bounds.size.z * 0.24f), (float)random.NextDouble());
+            Vector3 scale = new Vector3(width, 0.02f, depth);
+            Quaternion rotation = Quaternion.Euler(0f, (float)random.NextDouble() * 360f, (float)random.NextDouble() * 6f - 3f);
+            AddPrimitive(parent, $"HorrorCeilingLeak_{index}", new Vector3(x, bounds.max.y - 0.05f, z), rotation, scale, material);
+        }
+
+        private static void AddCornerShadow(Transform parent, Bounds bounds, System.Random random, Material material, int index)
+        {
+            bool useMinX = random.NextDouble() > 0.5;
+            bool useMinZ = random.NextDouble() > 0.5;
+            float x = useMinX ? bounds.min.x + 0.08f : bounds.max.x - 0.08f;
+            float z = useMinZ ? bounds.min.z + 0.08f : bounds.max.z - 0.08f;
+            float height = Mathf.Lerp(1.6f, Mathf.Max(1.8f, bounds.size.y * 0.82f), (float)random.NextDouble());
+            float width = Mathf.Lerp(0.22f, 0.38f, (float)random.NextDouble());
+            AddPrimitive(
+                parent,
+                $"HorrorCornerShadow_{index}",
+                new Vector3(x, bounds.min.y + (height * 0.5f), z),
+                Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f),
+                new Vector3(width, height, width),
+                material);
         }
 
         private static void AddPrimitive(Transform parent, string name, Vector3 position, Quaternion rotation, Vector3 scale, Material material)
@@ -358,8 +385,8 @@ namespace EscapeBlock9.ProcGen.Runtime
         {
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = new Color(0.018f, 0.006f, 0.011f, 1f);
-            RenderSettings.fogDensity = 0.034f;
+            RenderSettings.fogColor = new Color(0.026f, 0.03f, 0.036f, 1f);
+            RenderSettings.fogDensity = 0.012f;
         }
     }
 }

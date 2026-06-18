@@ -3,7 +3,7 @@ using UnityEngine;
 [RequireComponent(typeof(ItemPickup))]
 public class FlashlightItem : MonoBehaviour
 {
-    [SerializeField] private float batteryLifeSeconds = 60f;
+    [SerializeField] private float batteryLifeSeconds = 240f;
     [SerializeField] private bool startsEnabled = true;
     [SerializeField] private Color flashlightColor = new Color(1f, 0.96f, 0.88f, 1f);
     [SerializeField] private float flashlightIntensity = 1.35f;
@@ -57,10 +57,18 @@ public class FlashlightItem : MonoBehaviour
         float range,
         float spotAngle,
         float innerSpotAngle,
-        LightShadows shadows)
+        LightShadows shadows,
+        bool refillBattery = true)
     {
         batteryLifeSeconds = Mathf.Max(1f, batteryLife);
-        batterySecondsRemaining = Mathf.Clamp(batterySecondsRemaining <= 0f ? batteryLifeSeconds : batterySecondsRemaining, 0f, batteryLifeSeconds);
+        if (refillBattery)
+        {
+            batterySecondsRemaining = batteryLifeSeconds;
+        }
+        else
+        {
+            batterySecondsRemaining = Mathf.Clamp(batterySecondsRemaining, 0f, batteryLifeSeconds);
+        }
         flashlightColor = color;
         flashlightIntensity = intensity;
         flashlightRange = range;

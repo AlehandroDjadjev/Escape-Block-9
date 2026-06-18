@@ -143,8 +143,11 @@ public sealed class MultiplayerPlayerStateDto
     public float[] rotation;
     public float[] velocity;
     public string animationState = "idle";
+    public int currentHealth = 100;
+    public int maxHealth = 100;
+    public bool isDead;
 
-    public static MultiplayerPlayerStateDto FromTransform(string playerId, int userId, int seq, Transform target, Vector3 velocity)
+    public static MultiplayerPlayerStateDto FromTransform(string playerId, int userId, int seq, Transform target, Vector3 velocity, PlayerHealth health = null)
     {
         return new MultiplayerPlayerStateDto
         {
@@ -156,7 +159,10 @@ public sealed class MultiplayerPlayerStateDto
             position = MultiplayerJson.VectorToArray(target != null ? target.position : Vector3.zero),
             rotation = MultiplayerJson.VectorToArray(target != null ? target.eulerAngles : Vector3.zero),
             velocity = MultiplayerJson.VectorToArray(velocity),
-            animationState = velocity.sqrMagnitude > 0.01f ? "run" : "idle"
+            animationState = velocity.sqrMagnitude > 0.01f ? "run" : "idle",
+            currentHealth = health != null ? health.CurrentHealth : 100,
+            maxHealth = health != null ? health.MaxHealth : 100,
+            isDead = health != null && health.IsDead
         };
     }
 }
@@ -167,6 +173,10 @@ public sealed class MultiplayerRoomSnapshotDto
     public string type;
     public int lobbyId;
     public MultiplayerPlayerStateDto[] players;
+    public MultiplayerSetupSnapshotDto setup;
+    public MultiplayerSetupSnapshotDto setupFinalized;
+    public MultiplayerTeacherStateDto[] teachers;
+    public MultiplayerKeyStateDto keyState;
 }
 
 [Serializable]
@@ -190,6 +200,52 @@ public sealed class MultiplayerSetupPlacementDto
     public float[] teacherPositionsX;  // teachers[i] = (x[i], y[i], z[i])
     public float[] teacherPositionsY;
     public float[] teacherPositionsZ;
+}
+
+[Serializable]
+public sealed class MultiplayerSetupSnapshotDto
+{
+    public string type;
+    public int lobbyId;
+    public bool isFinalized;
+    public int keyHiderUserId;
+    public int teacherPlacerUserId;
+    public double serverTime;
+    public float[] keyPosition;
+    public float[] teacherPositionsX;
+    public float[] teacherPositionsY;
+    public float[] teacherPositionsZ;
+}
+
+[Serializable]
+public sealed class MultiplayerTeacherStateDto
+{
+    public string type = "teacher_state";
+    public int lobbyId;
+    public string teacherId;
+    public int authoritativeUserId;
+    public int seq;
+    public double serverTime;
+    public float[] position;
+    public float[] rotation;
+    public string aiState = "Wander";
+    public bool canSeePlayer;
+    public float[] lastKnownPlayerPosition;
+}
+
+[Serializable]
+public sealed class MultiplayerKeyStateDto
+{
+    public string type = "key_state";
+    public int lobbyId;
+    public string keyId = "objective_exit_key";
+    public int authoritativeUserId;
+    public int seq;
+    public double serverTime;
+    public float[] position;
+    public float[] rotation;
+    public bool isHeld;
+    public string holderPlayerId;
 }
 
 public readonly struct MultiplayerApiResult<T>

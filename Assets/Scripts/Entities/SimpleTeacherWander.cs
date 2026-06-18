@@ -65,6 +65,8 @@ public class SimpleTeacherWander : MonoBehaviour
 
     /// <summary>True if the teacher currently has line-of-sight on the player.</summary>
     public bool CanSeePlayer { get; private set; }
+    public string NetworkStateName => state.ToString();
+    public Vector3 LastKnownPlayerPosition => lastKnownPlayerPosition;
 
     private static readonly (float xMin, float xMax, float zMin, float zMax)[] Corridors =
     {
@@ -139,10 +141,42 @@ public class SimpleTeacherWander : MonoBehaviour
     private Vector3 desiredFaceDir;
     private bool hasDesiredFace;
     private bool isChasingFace; // true when locking onto the player (use chaseTurnSpeed)
+    private bool networkControlled;
+
+    public void SetNetworkControlled(bool value)
+    {
+        networkControlled = value;
+    }
+
+    public void ApplyNetworkState(Vector3 position, Vector3 eulerAngles, string aiState, bool canSeePlayer, Vector3 lastKnownPosition)
+    {
+        transform.position = position;
+        transform.rotation = Quaternion.Euler(eulerAngles);
+        CanSeePlayer = canSeePlayer;
+        lastKnownPlayerPosition = lastKnownPosition;
+
+        if (System.Enum.TryParse(aiState, out AIState parsedState))
+        {
+            state = parsedState;
+        }
+
+        if (player == null)
+        {
+            FindPlayer();
+        }
+
+        TryDealContactDamage();
+    }
 
     private void Update()
     {
         if (player == null) FindPlayer();
+
+        if (networkControlled)
+        {
+            TryDealContactDamage();
+            return;
+        }
 
         CanSeePlayer = HasLineOfSightOnPlayer();
         UpdateState();
