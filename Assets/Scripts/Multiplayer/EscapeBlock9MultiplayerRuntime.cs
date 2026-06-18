@@ -44,6 +44,15 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     private bool generationReady;
     private bool generationRequested;
     private bool suppressBuiltInUi = true;
+
+    // Setup phase: after the facility generates, both clients independently roll
+    // the same role assignment (deterministic from lobbyId + mapId) and a reveal
+    // panel is shown for a few seconds before gameplay is enabled. Chunk 1 covers
+    // role pick + reveal; placement UI (drag-drop teachers, click key spot) is the
+    // next chunk and will gate on setupPhaseComplete the same way.
+    private bool setupPhaseComplete = true;
+    private bool localPlayerIsKeyHider;
+    private Coroutine setupPhaseRoutine;
     private int localStateSeq;
     private float nextLobbyPingTime;
     private float nextGamePingTime;
@@ -69,6 +78,50 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     private Text lobbyCodeText;
     private Text lobbyStatusText;
     private Text overlayStatusText;
+    private GameObject roleRevealPanel;
+    private Text roleRevealTitle;
+    private Text roleRevealSubtitle;
+
+    // Placement phase (chunk 2a) — Key Hider clicks on the top-down map to choose
+    // where the exit key spawns. Teacher Placer just sees a waiting message in this
+    // chunk; chunk 2b will add the drag-drop teacher list.
+    private GameObject placementPanel;
+    private RawImage placementMapImage;
+    private RectTransform placementMapRect;
+    private Image placementMapMarker;
+    private Text placementStatusText;
+    private Button placementConfirmButton;
+    private Camera placementMapCamera;
+    private RenderTexture placementMapTexture;
+    private Vector3? localChosenKeyWorldPos;
+    private Vector3? peerChosenKeyWorldPos;
+    private bool localPlacementConfirmed;
+    private bool peerPlacementConfirmed;
+    private Bounds placementMapWorldBounds;
+
+    // Teacher placement (chunk 2b). Items are kept in a stable alphabetical order
+    // so both clients can use a positional array over the wire without sending names.
+    private static readonly (string slug, string displayName)[] TeacherSlots =
+    {
+        ("basheva",      "Basheva"),
+        ("bojkata",      "Bojkata"),
+        ("direktorka",   "Direktorka"),
+        ("frenski",      "Frenski"),
+        ("hristov",      "Hristov"),
+        ("ivanzaprqnov", "Ivan Zaprqnov"),
+        ("ivazaharieva", "Iva Zaharieva"),
+        ("milaneikova",  "Milaneikova"),
+        ("milenSpasov",  "Milen Spasov"),
+        ("tancheto",     "Tancheto"),
+    };
+
+    private GameObject placementTeacherListContent;
+    private readonly GameObject[] placementTeacherListItems = new GameObject[TeacherSlots.Length];
+    private readonly Vector3?[] localTeacherWorldPos = new Vector3?[TeacherSlots.Length];
+    private readonly Vector3?[] peerTeacherWorldPos = new Vector3?[TeacherSlots.Length];
+    private readonly Image[] placementTeacherMapMarkers = new Image[TeacherSlots.Length];
+    private GameObject placementDragGhost;
+    private Image placementDragGhostImage;
     private Button connectGuestButton;
     private Button createLobbyButton;
     private Button joinLobbyButton;
@@ -165,11 +218,29 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         PumpLobbySocketKeepAlive();
         PumpGameSocketKeepAlive();
         PumpLocalStateSync();
+        PumpPlacementInput();
 
         if (Keyboard.current != null && Keyboard.current.f7Key.wasPressedThisFrame)
         {
             ResetToAuth();
         }
+    }
+
+    // While the placement panel is up and the local player is the Key Hider, a
+    // left-click on the map records the world position and shows a marker on the
+    // map. The Confirm button picks it up from there.
+    private void PumpPlacementInput()
+    {
+        if (placementPanel == null || !placementPanel.activeInHierarchy) return;
+        if (!localPlayerIsKeyHider || localPlacementConfirmed) return;
+        if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame) return;
+
+        Vector2 screenPos = Mouse.current.position.ReadValue();
+        if (!TryMapClickToWorld(screenPos, out Vector3 worldPos)) return;
+
+        localChosenKeyWorldPos = worldPos;
+        ShowPlacementMarkerAtScreen(screenPos);
+        UpdatePlacementUiForRole();
     }
 
     private void BuildUi()
@@ -229,9 +300,64 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         GameObject overlayCard = CreatePanel(overlayPanel.transform, "OverlayCard", panel, new Vector2(0.5f, 0.12f), new Vector2(520f, 70f));
         overlayStatusText = CreateText(overlayCard.transform, "OverlayStatus", string.Empty, font, 18, new Vector2(0.5f, 0.5f), new Vector2(480f, 40f), Color.white);
 
+        // Role reveal panel — shown after facility generation. Sits above the overlay
+        // because it's built later (later sibling renders on top).
+        roleRevealPanel = CreateFullScreenPanel(rootCanvas.transform, "RoleRevealPanel", new Color(0.04f, 0.05f, 0.08f, 0.96f));
+        GameObject revealCard = CreatePanel(roleRevealPanel.transform, "RoleRevealCard", panel, new Vector2(0.5f, 0.5f), new Vector2(760f, 320f));
+        CreateText(revealCard.transform, "RoleRevealHeader", "YOUR ROLE", font, 24, new Vector2(0.5f, 0.86f), new Vector2(680f, 36f), new Color(0.88f, 0.8f, 0.58f, 1f));
+        roleRevealTitle    = CreateText(revealCard.transform, "RoleRevealTitle",    string.Empty, font, 60, new Vector2(0.5f, 0.55f), new Vector2(700f, 90f), new Color(1f, 0.95f, 0.78f, 1f));
+        roleRevealSubtitle = CreateText(revealCard.transform, "RoleRevealSubtitle", string.Empty, font, 20, new Vector2(0.5f, 0.20f), new Vector2(680f, 80f), new Color(0.85f, 0.9f, 0.82f, 1f));
+
+        // Placement panel — full-screen top-down map. Built after the reveal so it
+        // renders on top. Contains the live RenderTexture of the school, a marker
+        // dot that follows the cursor click, a confirm button, and a status line.
+        placementPanel = CreateFullScreenPanel(rootCanvas.transform, "PlacementPanel", new Color(0.02f, 0.03f, 0.05f, 0.95f));
+        placementStatusText = CreateText(placementPanel.transform, "PlacementStatus", string.Empty, font, 24, new Vector2(0.5f, 0.95f), new Vector2(1200f, 50f), new Color(1f, 0.95f, 0.78f, 1f));
+
+        GameObject mapHolder = CreatePanel(placementPanel.transform, "PlacementMapHolder", panel, new Vector2(0.5f, 0.5f), new Vector2(900f, 720f));
+        GameObject mapImageGo = new GameObject("PlacementMapImage", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+        mapImageGo.transform.SetParent(mapHolder.transform, false);
+        placementMapImage = mapImageGo.GetComponent<RawImage>();
+        placementMapImage.color = Color.white;
+        placementMapRect = mapImageGo.GetComponent<RectTransform>();
+        placementMapRect.anchorMin = new Vector2(0f, 0f);
+        placementMapRect.anchorMax = new Vector2(1f, 1f);
+        placementMapRect.offsetMin = new Vector2(12f, 12f);
+        placementMapRect.offsetMax = new Vector2(-12f, -12f);
+
+        // Marker dot — child of the map image so its anchored position maps directly
+        // to map coordinates. Hidden until the player has clicked once.
+        GameObject markerGo = new GameObject("PlacementMarker", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        markerGo.transform.SetParent(mapImageGo.transform, false);
+        placementMapMarker = markerGo.GetComponent<Image>();
+        placementMapMarker.color = new Color(1f, 0.85f, 0.25f, 1f);
+        RectTransform markerRect = markerGo.GetComponent<RectTransform>();
+        markerRect.sizeDelta = new Vector2(24f, 24f);
+        markerRect.anchorMin = new Vector2(0.5f, 0.5f);
+        markerRect.anchorMax = new Vector2(0.5f, 0.5f);
+        markerGo.SetActive(false);
+
+        placementConfirmButton = CreateButton(placementPanel.transform, "PlacementConfirm", "Confirm", font, new Vector2(0.5f, 0.06f), new Vector2(280f, 60f), gold, OnPlacementConfirmPressed);
+
+        BuildPlacementTeacherList(panel, font);
+
+        // Ghost icon that follows the cursor while a teacher is being dragged. Owned
+        // by the placement panel so it auto-hides with the rest of the placement UI.
+        GameObject ghostGo = new GameObject("PlacementDragGhost", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        ghostGo.transform.SetParent(placementPanel.transform, false);
+        placementDragGhost = ghostGo;
+        placementDragGhostImage = ghostGo.GetComponent<Image>();
+        placementDragGhostImage.raycastTarget = false;
+        placementDragGhostImage.color = new Color(1f, 1f, 1f, 0.85f);
+        RectTransform ghostRect = ghostGo.GetComponent<RectTransform>();
+        ghostRect.sizeDelta = new Vector2(80f, 80f);
+        ghostGo.SetActive(false);
+
         authPanel.SetActive(true);
         lobbyPanel.SetActive(false);
         overlayPanel.SetActive(false);
+        roleRevealPanel.SetActive(false);
+        placementPanel.SetActive(false);
     }
 
     private void RefreshLocalReferences()
@@ -259,7 +385,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             return;
         }
 
-        bool enableGameplay = gameStarted && generationReady;
+        bool enableGameplay = gameStarted && generationReady && setupPhaseComplete;
         SetLocalGameplayEnabled(enableGameplay);
 
         if (!enableGameplay)
@@ -653,6 +779,9 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             case "player_state":
                 ApplyRemotePlayerState(JsonUtility.FromJson<MultiplayerPlayerStateDto>(json));
                 break;
+            case "setup_placement":
+                HandleRemotePlacement(JsonUtility.FromJson<MultiplayerSetupPlacementDto>(json));
+                break;
             case "player_left":
             {
                 MultiplayerLobbyEventDto left = JsonUtility.FromJson<MultiplayerLobbyEventDto>(json);
@@ -796,6 +925,532 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         generationReady = true;
         SetOverlayStatus("Facility ready. Waiting for player states...");
         PreSpawnRemotePlayers(generator);
+
+        // After the facility is built, run the setup phase: roll roles, show the
+        // reveal, then unlock gameplay. setupPhaseComplete blocks gameplay during it.
+        if (setupPhaseRoutine != null) StopCoroutine(setupPhaseRoutine);
+        setupPhaseRoutine = StartCoroutine(RunSetupPhase());
+    }
+
+    // Both clients compute the role from a deterministic hash of the lobby+map, so
+    // they always agree without an extra round-trip. The chosen slot becomes the Key
+    // Hider; the other player is the Teacher Placer. With one player in the lobby
+    // (e.g. local debugging) the local player defaults to Key Hider so we still
+    // exercise the reveal flow.
+    private bool DetermineLocalRoleIsKeyHider()
+    {
+        if (currentGameStart == null || localMember == null) return true;
+        int playerCount = currentGameStart.players != null ? currentGameStart.players.Length : 0;
+        if (playerCount < 2) return true;
+
+        int hash = MultiplayerJson.DeterministicHash($"role:{currentGameStart.lobbyId}:{currentGameStart.mapId}");
+        int hiderSlot = (Mathf.Abs(hash) % 2) + 1; // slots are 1-indexed
+        return localMember.slot == hiderSlot;
+    }
+
+    private IEnumerator RunSetupPhase()
+    {
+        setupPhaseComplete = false;
+        localPlayerIsKeyHider = DetermineLocalRoleIsKeyHider();
+
+        if (roleRevealPanel != null)
+        {
+            if (roleRevealTitle != null)
+            {
+                roleRevealTitle.text = localPlayerIsKeyHider ? "KEY HIDER" : "TEACHER PLACER";
+            }
+            if (roleRevealSubtitle != null)
+            {
+                roleRevealSubtitle.text = localPlayerIsKeyHider
+                    ? "You will choose where the exit key is hidden in the school."
+                    : "You will place each teacher around the school.";
+            }
+            overlayPanel.SetActive(false);
+            roleRevealPanel.SetActive(true);
+        }
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // Reveal for a few seconds, then hand off to the placement phase.
+        yield return new WaitForSecondsRealtime(3.5f);
+
+        if (roleRevealPanel != null) roleRevealPanel.SetActive(false);
+
+        BeginPlacementPhase();
+        setupPhaseRoutine = null;
+    }
+
+    // Wire up the top-down camera + RT and show the placement panel. Both players
+    // see the map; only the Key Hider can click. Once each side has confirmed and
+    // the peer's placement message arrives, the key spawns and gameplay unlocks.
+    private void BeginPlacementPhase()
+    {
+        localChosenKeyWorldPos = null;
+        peerChosenKeyWorldPos = null;
+        localPlacementConfirmed = false;
+        peerPlacementConfirmed = false;
+
+        CreatePlacementMapCamera();
+        if (placementMapMarker != null) placementMapMarker.gameObject.SetActive(false);
+
+        if (placementPanel != null) placementPanel.SetActive(true);
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        UpdatePlacementUiForRole();
+    }
+
+    private void UpdatePlacementUiForRole()
+    {
+        // Only the Teacher Placer sees the teacher list column.
+        if (placementTeacherListContent != null)
+        {
+            placementTeacherListContent.transform.parent.parent.gameObject.SetActive(!localPlayerIsKeyHider);
+        }
+
+        int placed = CountPlacedTeachers();
+        if (placementStatusText != null)
+        {
+            if (localPlayerIsKeyHider)
+            {
+                placementStatusText.text = localPlacementConfirmed
+                    ? "Key spot locked in. Waiting for the Teacher Placer..."
+                    : "Click on the map to hide the exit key. Press Confirm when ready.";
+            }
+            else
+            {
+                placementStatusText.text = localPlacementConfirmed
+                    ? "Waiting for the Key Hider to finish..."
+                    : $"Drag each teacher onto the map. Placed {placed}/{TeacherSlots.Length}.";
+            }
+        }
+        if (placementConfirmButton != null)
+        {
+            bool canConfirm;
+            if (localPlacementConfirmed) canConfirm = false;
+            else if (localPlayerIsKeyHider) canConfirm = localChosenKeyWorldPos.HasValue;
+            else canConfirm = placed == TeacherSlots.Length;
+            placementConfirmButton.interactable = canConfirm;
+        }
+    }
+
+    // Build a child ortho camera over the school that renders into the UI image.
+    // Camera sits high above the world bounds and looks straight down.
+    private void CreatePlacementMapCamera()
+    {
+        ComputeSchoolBounds();
+
+        if (placementMapTexture != null)
+        {
+            placementMapTexture.Release();
+            DestroyUnityObject(placementMapTexture);
+            placementMapTexture = null;
+        }
+        placementMapTexture = new RenderTexture(1024, 1024, 16, RenderTextureFormat.ARGB32);
+        placementMapTexture.name = "PlacementMapRT";
+        placementMapTexture.Create();
+
+        if (placementMapCamera == null)
+        {
+            GameObject camGo = new GameObject("PlacementMapCamera");
+            placementMapCamera = camGo.AddComponent<Camera>();
+        }
+
+        Vector3 center = placementMapWorldBounds.center;
+        float height = placementMapWorldBounds.size.y + 20f;
+        placementMapCamera.transform.position = new Vector3(center.x, center.y + height, center.z);
+        placementMapCamera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        placementMapCamera.orthographic = true;
+        // Pick the larger horizontal extent so the whole school fits.
+        float halfExtent = Mathf.Max(placementMapWorldBounds.extents.x, placementMapWorldBounds.extents.z) + 1f;
+        placementMapCamera.orthographicSize = halfExtent;
+        placementMapCamera.nearClipPlane = 0.3f;
+        placementMapCamera.farClipPlane = height * 2f + 50f;
+        placementMapCamera.clearFlags = CameraClearFlags.SolidColor;
+        placementMapCamera.backgroundColor = new Color(0.05f, 0.05f, 0.08f, 1f);
+        placementMapCamera.cullingMask = ~0;
+        placementMapCamera.targetTexture = placementMapTexture;
+
+        if (placementMapImage != null)
+        {
+            placementMapImage.texture = placementMapTexture;
+        }
+    }
+
+    // Find the generated school's bounding box so the camera can frame it. Tries
+    // the procedural generator's root first, then the static Block9Building, then
+    // falls back to a fixed 60m square at origin.
+    private void ComputeSchoolBounds()
+    {
+        Transform target = null;
+        if (runtimeGenerator != null && runtimeGenerator.GeneratedRoot != null)
+        {
+            target = runtimeGenerator.GeneratedRoot.transform;
+        }
+        if (target == null)
+        {
+            GameObject block = GameObject.Find("Block9Building");
+            if (block != null) target = block.transform;
+        }
+
+        if (target == null)
+        {
+            placementMapWorldBounds = new Bounds(Vector3.zero, new Vector3(60f, 10f, 60f));
+            return;
+        }
+
+        Renderer[] renderers = target.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0)
+        {
+            placementMapWorldBounds = new Bounds(target.position, new Vector3(60f, 10f, 60f));
+            return;
+        }
+
+        Bounds b = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+        placementMapWorldBounds = b;
+    }
+
+    // Convert a click in the map's RectTransform into a world-space position using
+    // the ortho camera. We hit the ground plane at the school's average Y. Returns
+    // false if the click was outside the map rect.
+    private bool TryMapClickToWorld(Vector2 screenPos, out Vector3 worldPos)
+    {
+        worldPos = Vector3.zero;
+        if (placementMapRect == null || placementMapCamera == null) return false;
+        if (!RectTransformUtility.RectangleContainsScreenPoint(placementMapRect, screenPos, null)) return false;
+
+        Vector2 localPoint;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(placementMapRect, screenPos, null, out localPoint);
+        Rect r = placementMapRect.rect;
+        float u = Mathf.Clamp01((localPoint.x - r.xMin) / r.width);
+        float v = Mathf.Clamp01((localPoint.y - r.yMin) / r.height);
+
+        Bounds b = placementMapWorldBounds;
+        float worldX = b.center.x + (u - 0.5f) * b.size.x;
+        float worldZ = b.center.z + (v - 0.5f) * b.size.z;
+        float worldY = b.center.y - b.extents.y * 0.5f; // a bit below center, closer to floor
+        worldPos = new Vector3(worldX, worldY, worldZ);
+        return true;
+    }
+
+    // Drop the marker dot at the clicked map position (so the Hider sees where
+    // they've chosen). Position is in the map rect's local space.
+    private void ShowPlacementMarkerAtScreen(Vector2 screenPos)
+    {
+        if (placementMapMarker == null || placementMapRect == null) return;
+        Vector2 localPoint;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(placementMapRect, screenPos, null, out localPoint);
+        RectTransform markerRect = placementMapMarker.GetComponent<RectTransform>();
+        markerRect.anchoredPosition = localPoint;
+        placementMapMarker.gameObject.SetActive(true);
+    }
+
+    private void OnPlacementConfirmPressed()
+    {
+        if (localPlacementConfirmed) return;
+        if (localPlayerIsKeyHider && !localChosenKeyWorldPos.HasValue) return;
+        if (!localPlayerIsKeyHider && CountPlacedTeachers() != TeacherSlots.Length) return;
+
+        localPlacementConfirmed = true;
+        SendLocalPlacement();
+        UpdatePlacementUiForRole();
+        TryFinalizePlacement();
+    }
+
+    private void SendLocalPlacement()
+    {
+        if (gameSocket == null) return;
+        var dto = new MultiplayerSetupPlacementDto
+        {
+            type = "setup_placement",
+            playerId = localMember != null ? localMember.playerId : string.Empty,
+            isKeyHider = localPlayerIsKeyHider,
+            keyPosition = (localPlayerIsKeyHider && localChosenKeyWorldPos.HasValue)
+                ? MultiplayerJson.VectorToArray(localChosenKeyWorldPos.Value)
+                : null,
+        };
+
+        // For the Teacher Placer, ship per-axis arrays sized to the slot count.
+        if (!localPlayerIsKeyHider)
+        {
+            int n = TeacherSlots.Length;
+            dto.teacherPositionsX = new float[n];
+            dto.teacherPositionsY = new float[n];
+            dto.teacherPositionsZ = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 p = localTeacherWorldPos[i] ?? Vector3.zero;
+                dto.teacherPositionsX[i] = p.x;
+                dto.teacherPositionsY[i] = p.y;
+                dto.teacherPositionsZ[i] = p.z;
+            }
+        }
+
+        gameSocket.SendJson(JsonUtility.ToJson(dto));
+    }
+
+    private void HandleRemotePlacement(MultiplayerSetupPlacementDto dto)
+    {
+        if (dto == null) return;
+        peerPlacementConfirmed = true;
+
+        if (dto.isKeyHider && dto.keyPosition != null && dto.keyPosition.Length == 3)
+        {
+            peerChosenKeyWorldPos = new Vector3(dto.keyPosition[0], dto.keyPosition[1], dto.keyPosition[2]);
+        }
+
+        if (!dto.isKeyHider
+            && dto.teacherPositionsX != null && dto.teacherPositionsY != null && dto.teacherPositionsZ != null
+            && dto.teacherPositionsX.Length == TeacherSlots.Length)
+        {
+            for (int i = 0; i < TeacherSlots.Length; i++)
+            {
+                peerTeacherWorldPos[i] = new Vector3(
+                    dto.teacherPositionsX[i],
+                    dto.teacherPositionsY[i],
+                    dto.teacherPositionsZ[i]);
+            }
+        }
+
+        TryFinalizePlacement();
+    }
+
+    private void TryFinalizePlacement()
+    {
+        if (!localPlacementConfirmed || !peerPlacementConfirmed) return;
+
+        Vector3? keyPos = localPlayerIsKeyHider ? localChosenKeyWorldPos : peerChosenKeyWorldPos;
+        if (keyPos.HasValue) SpawnKeyAt(keyPos.Value);
+
+        // The Teacher Placer's array is authoritative — both clients use it.
+        Vector3?[] teachers = localPlayerIsKeyHider ? peerTeacherWorldPos : localTeacherWorldPos;
+        ApplyTeacherPlacements(teachers);
+
+        if (placementPanel != null) placementPanel.SetActive(false);
+        if (placementMapCamera != null) placementMapCamera.targetTexture = null;
+        setupPhaseComplete = true;
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    // Left-side scrollable column with the 10 teachers as draggable portraits.
+    // Only visible to the Teacher Placer (hidden otherwise in UpdatePlacementUiForRole).
+    private void BuildPlacementTeacherList(Color panel, Font font)
+    {
+        GameObject column = CreatePanel(placementPanel.transform, "PlacementTeacherColumn", panel, new Vector2(0.13f, 0.5f), new Vector2(220f, 720f));
+        CreateText(column.transform, "TeacherListHeader", "TEACHERS", font, 22, new Vector2(0.5f, 0.96f), new Vector2(200f, 30f), new Color(1f, 0.95f, 0.78f, 1f));
+
+        // Scroll view containing the items.
+        GameObject scrollGo = new GameObject("TeacherScroll", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        scrollGo.transform.SetParent(column.transform, false);
+        scrollGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.25f);
+        RectTransform scrollRect = scrollGo.GetComponent<RectTransform>();
+        scrollRect.anchorMin = new Vector2(0.05f, 0.04f);
+        scrollRect.anchorMax = new Vector2(0.95f, 0.92f);
+        scrollRect.offsetMin = Vector2.zero;
+        scrollRect.offsetMax = Vector2.zero;
+
+        GameObject contentGo = new GameObject("Content", typeof(RectTransform));
+        contentGo.transform.SetParent(scrollGo.transform, false);
+        placementTeacherListContent = contentGo;
+        RectTransform contentRect = contentGo.GetComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0f, 1f);
+        contentRect.anchorMax = new Vector2(1f, 1f);
+        contentRect.pivot = new Vector2(0.5f, 1f);
+        contentRect.anchoredPosition = Vector2.zero;
+        contentRect.sizeDelta = new Vector2(0f, TeacherSlots.Length * 78f);
+
+        for (int i = 0; i < TeacherSlots.Length; i++)
+        {
+            placementTeacherListItems[i] = BuildTeacherListItem(contentGo.transform, i, font);
+        }
+    }
+
+    private GameObject BuildTeacherListItem(Transform parent, int index, Font font)
+    {
+        GameObject item = new GameObject($"TeacherItem_{TeacherSlots[index].slug}",
+            typeof(RectTransform), typeof(CanvasRenderer), typeof(Image),
+            typeof(PlacementTeacherDragHandler));
+        item.transform.SetParent(parent, false);
+
+        RectTransform itemRect = item.GetComponent<RectTransform>();
+        itemRect.anchorMin = new Vector2(0f, 1f);
+        itemRect.anchorMax = new Vector2(1f, 1f);
+        itemRect.pivot = new Vector2(0.5f, 1f);
+        itemRect.sizeDelta = new Vector2(0f, 70f);
+        itemRect.anchoredPosition = new Vector2(0f, -(index * 78f) - 4f);
+
+        Image bg = item.GetComponent<Image>();
+        bg.color = new Color(0.16f, 0.18f, 0.22f, 1f);
+        bg.raycastTarget = true;
+
+        // Portrait — Texture2D loaded from the photos folder by slug.
+        Texture2D portrait = LoadTeacherPortrait(TeacherSlots[index].slug);
+        GameObject portraitGo = new GameObject("Portrait", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+        portraitGo.transform.SetParent(item.transform, false);
+        RawImage portraitImage = portraitGo.GetComponent<RawImage>();
+        portraitImage.texture = portrait;
+        portraitImage.raycastTarget = false;
+        RectTransform portraitRect = portraitGo.GetComponent<RectTransform>();
+        portraitRect.anchorMin = new Vector2(0f, 0.5f);
+        portraitRect.anchorMax = new Vector2(0f, 0.5f);
+        portraitRect.pivot = new Vector2(0f, 0.5f);
+        portraitRect.sizeDelta = new Vector2(60f, 60f);
+        portraitRect.anchoredPosition = new Vector2(6f, 0f);
+
+        Text label = CreateText(item.transform, "Name", TeacherSlots[index].displayName, font, 16,
+            new Vector2(0.62f, 0.5f), new Vector2(140f, 60f), new Color(0.92f, 0.92f, 0.85f, 1f));
+        label.alignment = TextAnchor.MiddleLeft;
+        label.raycastTarget = false;
+
+        var handler = item.GetComponent<PlacementTeacherDragHandler>();
+        handler.slotIndex = index;
+        handler.onBeginDrag = OnTeacherDragBegin;
+        handler.onDrag = OnTeacherDragMove;
+        handler.onEndDrag = OnTeacherDragEnd;
+
+        return item;
+    }
+
+    private static Texture2D LoadTeacherPortrait(string slug)
+    {
+#if UNITY_EDITOR
+        foreach (string ext in new[] { ".png", ".jpg", ".jpeg" })
+        {
+            string path = $"Assets/snimki na uchitelite/{slug}{ext}";
+            Texture2D tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            if (tex != null) return tex;
+        }
+#endif
+        return Resources.Load<Texture2D>($"TeacherPortraits/{slug}");
+    }
+
+    private void OnTeacherDragBegin(int slotIndex, Vector2 screenPos)
+    {
+        if (!IsTeacherListVisible() || !CanModifyTeacherSlot(slotIndex)) return;
+        Texture2D portrait = LoadTeacherPortrait(TeacherSlots[slotIndex].slug);
+        if (placementDragGhostImage != null && portrait != null)
+        {
+            placementDragGhostImage.sprite = Sprite.Create(portrait,
+                new Rect(0, 0, portrait.width, portrait.height), new Vector2(0.5f, 0.5f));
+        }
+        if (placementDragGhost != null)
+        {
+            placementDragGhost.SetActive(true);
+            ((RectTransform)placementDragGhost.transform).position = screenPos;
+        }
+    }
+
+    private void OnTeacherDragMove(int slotIndex, Vector2 screenPos)
+    {
+        if (placementDragGhost == null || !placementDragGhost.activeSelf) return;
+        ((RectTransform)placementDragGhost.transform).position = screenPos;
+    }
+
+    private void OnTeacherDragEnd(int slotIndex, Vector2 screenPos)
+    {
+        if (placementDragGhost != null) placementDragGhost.SetActive(false);
+        if (!IsTeacherListVisible() || !CanModifyTeacherSlot(slotIndex)) return;
+
+        if (!TryMapClickToWorld(screenPos, out Vector3 worldPos)) return;
+
+        localTeacherWorldPos[slotIndex] = worldPos;
+        PlaceTeacherMarkerOnMap(slotIndex, screenPos);
+
+        // Remove the dragged item from the list so the player can see what's left.
+        if (placementTeacherListItems[slotIndex] != null)
+        {
+            placementTeacherListItems[slotIndex].SetActive(false);
+        }
+
+        UpdatePlacementUiForRole();
+    }
+
+    private bool IsTeacherListVisible()
+    {
+        return placementPanel != null && placementPanel.activeInHierarchy
+               && !localPlayerIsKeyHider && !localPlacementConfirmed;
+    }
+
+    private bool CanModifyTeacherSlot(int slotIndex)
+    {
+        return slotIndex >= 0 && slotIndex < TeacherSlots.Length && !localTeacherWorldPos[slotIndex].HasValue;
+    }
+
+    // Drop a small numbered dot on the map at the placed teacher's screen position so
+    // the placer can see what they've staked out.
+    private void PlaceTeacherMarkerOnMap(int slotIndex, Vector2 screenPos)
+    {
+        if (placementMapRect == null) return;
+
+        Image marker = placementTeacherMapMarkers[slotIndex];
+        if (marker == null)
+        {
+            GameObject markerGo = new GameObject($"TeacherMarker_{TeacherSlots[slotIndex].slug}",
+                typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            markerGo.transform.SetParent(placementMapRect.transform, false);
+            marker = markerGo.GetComponent<Image>();
+            marker.color = new Color(0.95f, 0.4f, 0.4f, 0.95f);
+            marker.raycastTarget = false;
+            placementTeacherMapMarkers[slotIndex] = marker;
+        }
+        RectTransform markerRect = marker.rectTransform;
+        markerRect.sizeDelta = new Vector2(20f, 20f);
+        markerRect.anchorMin = new Vector2(0.5f, 0.5f);
+        markerRect.anchorMax = new Vector2(0.5f, 0.5f);
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(placementMapRect, screenPos, null, out Vector2 local);
+        markerRect.anchoredPosition = local;
+    }
+
+    private int CountPlacedTeachers()
+    {
+        int n = 0;
+        for (int i = 0; i < localTeacherWorldPos.Length; i++)
+            if (localTeacherWorldPos[i].HasValue) n++;
+        return n;
+    }
+
+    // After both confirms arrive, move each teacher GameObject in the scene to the
+    // placement chosen for it. Uses the slug suffix on the GameObject name to bind
+    // slot index → teacher; the order matches the array on the wire.
+    private void ApplyTeacherPlacements(Vector3?[] positionsByIndex)
+    {
+        if (positionsByIndex == null) return;
+
+        // Map slug → SimpleTeacherWander by walking the scene once.
+        var teacherBySlug = new Dictionary<string, SimpleTeacherWander>(TeacherSlots.Length);
+        foreach (var teacher in FindObjectsByType<SimpleTeacherWander>(FindObjectsSortMode.None))
+        {
+            string name = teacher.gameObject.name;
+            const string prefix = "Teacher_";
+            if (!name.StartsWith(prefix)) continue;
+            string slug = name.Substring(prefix.Length);
+            teacherBySlug[slug] = teacher;
+        }
+
+        for (int i = 0; i < TeacherSlots.Length; i++)
+        {
+            if (!positionsByIndex[i].HasValue) continue;
+            if (!teacherBySlug.TryGetValue(TeacherSlots[i].slug, out var teacher)) continue;
+            teacher.transform.position = positionsByIndex[i].Value;
+        }
+    }
+
+    private void SpawnKeyAt(Vector3 worldPos)
+    {
+        GameObject keyPrefab = null;
+#if UNITY_EDITOR
+        keyPrefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/arhitektura/KeyItem.prefab");
+#endif
+        if (keyPrefab == null) keyPrefab = Resources.Load<GameObject>("KeyItem");
+        if (keyPrefab == null)
+        {
+            Debug.LogWarning("[SetupPhase] KeyItem prefab not found; key will not spawn.");
+            return;
+        }
+        Instantiate(keyPrefab, worldPos, Quaternion.identity);
     }
 
     private void HandlePlayerEscaped()
@@ -806,6 +1461,28 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         generationRequested = false;
         currentGameStart = null;
         localStateSeq = 0;
+
+        if (setupPhaseRoutine != null)
+        {
+            StopCoroutine(setupPhaseRoutine);
+            setupPhaseRoutine = null;
+        }
+        setupPhaseComplete = true;
+        if (roleRevealPanel != null) roleRevealPanel.SetActive(false);
+        if (placementPanel != null) placementPanel.SetActive(false);
+        localChosenKeyWorldPos = null;
+        peerChosenKeyWorldPos = null;
+        localPlacementConfirmed = false;
+        peerPlacementConfirmed = false;
+        for (int i = 0; i < TeacherSlots.Length; i++)
+        {
+            localTeacherWorldPos[i] = null;
+            peerTeacherWorldPos[i] = null;
+            if (placementTeacherListItems[i] != null) placementTeacherListItems[i].SetActive(true);
+            if (placementTeacherMapMarkers[i] != null) DestroyUnityObject(placementTeacherMapMarkers[i].gameObject);
+            placementTeacherMapMarkers[i] = null;
+        }
+        if (placementMapCamera != null) placementMapCamera.targetTexture = null;
 
         if (gameSocket != null)
         {

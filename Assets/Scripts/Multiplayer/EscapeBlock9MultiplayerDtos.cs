@@ -175,6 +175,23 @@ public sealed class MultiplayerErrorDetailDto
     public string detail;
 }
 
+// Sent by each player at the end of the pre-game setup phase. The Key Hider
+// fills in keyPosition (and leaves teacherPositions empty); the Teacher Placer
+// will fill in teacherPositions (and leave keyPosition empty) once chunk 2b
+// lands. The receiving side stores whatever fields are populated. Positions are
+// flat float arrays so JsonUtility serializes them cleanly.
+[Serializable]
+public sealed class MultiplayerSetupPlacementDto
+{
+    public string type = "setup_placement";
+    public string playerId;
+    public bool isKeyHider;
+    public float[] keyPosition;        // length 3, world space, null if not the hider
+    public float[] teacherPositionsX;  // teachers[i] = (x[i], y[i], z[i])
+    public float[] teacherPositionsY;
+    public float[] teacherPositionsZ;
+}
+
 public readonly struct MultiplayerApiResult<T>
 {
     public readonly bool IsSuccess;
