@@ -6,6 +6,11 @@ public class PlaneHeadImage : MonoBehaviour
     [SerializeField] private Texture2D headImage;
     [SerializeField] private Color tint = Color.white;
 
+    /// <summary>The teacher's face photo, so other systems (e.g. the placement
+    /// map UI) can reuse it at runtime — including in builds where AssetDatabase
+    /// is unavailable.</summary>
+    public Texture2D HeadImage => headImage;
+
     private Renderer cachedRenderer;
     private MaterialPropertyBlock propertyBlock;
 
