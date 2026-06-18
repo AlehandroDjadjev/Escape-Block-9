@@ -19,8 +19,8 @@ public class GameAudioImportSettings : AssetPostprocessor
         settings.loadType = AudioClipLoadType.Streaming;     // stream, don't load to RAM
         settings.compressionFormat = AudioCompressionFormat.Vorbis;
         settings.quality = 0.5f;
+        settings.preloadAudioData = false;                   // per-platform setting now
         importer.defaultSampleSettings = settings;
         importer.forceToMono = false;
-        importer.preloadAudioData = false;
     }
 }
