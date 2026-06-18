@@ -31,8 +31,8 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private Vector3 flashlightLocalEulerAngles = Vector3.zero;
     [SerializeField] private Vector3 flashlightLocalScale = Vector3.one;
     [SerializeField] private Color flashlightColor = new Color(1f, 0.96f, 0.88f, 1f);
-    [SerializeField] private float flashlightIntensity = 0.675f;
-    [SerializeField] private float flashlightRange = 9f;
+    [SerializeField] private float flashlightIntensity = 1.35f;
+    [SerializeField] private float flashlightRange = 18f;
     [SerializeField] private float flashlightSpotAngle = 52f;
     [SerializeField] private float flashlightInnerSpotAngle = 28f;
     [SerializeField] private LightShadows flashlightShadows = LightShadows.None;
@@ -228,6 +228,18 @@ public class FirstPersonController : MonoBehaviour
         }
 
         return Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.rightCtrlKey.isPressed;
+    }
+
+    public void ResetStartingFlashlight()
+    {
+        inventory ??= GetComponent<SingleItemInventory>();
+
+        if (cameraPivot == null && Camera.main != null)
+        {
+            cameraPivot = Camera.main.transform;
+        }
+
+        EnsureStartingFlashlightItem();
     }
 
     private void EnsureStartingFlashlightItem()

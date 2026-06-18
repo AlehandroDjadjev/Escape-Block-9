@@ -1,5 +1,6 @@
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.AI;
 
 /// <summary>
 /// Teacher AI — three-state behavior:
@@ -44,6 +45,11 @@ public class SimpleTeacherWander : MonoBehaviour
     [Header("Ground Snap")]
     [SerializeField] private float standingOffset = 0.05f;
     [SerializeField] private LayerMask groundMask = ~0;
+
+    [Header("Generated Facility Wander")]
+    [SerializeField] private float navMeshWanderRadius = 10f;
+    [SerializeField] private int navMeshWanderAttempts = 18;
+    [SerializeField] private float navMeshFloorTolerance = 1.25f;
 
     private enum AIState { Wander, Chase, Investigate }
     private AIState state = AIState.Wander;
@@ -447,6 +453,12 @@ public class SimpleTeacherWander : MonoBehaviour
         var building = GameObject.Find("Block9Building");
         if (building == null)
         {
+            if (TryPickNavMeshWanderTarget(out wanderTarget))
+            {
+                nextRefreshTime = Time.time + pickNewTargetEverySeconds;
+                return;
+            }
+
             Vector2 r = Random.insideUnitCircle * wanderRadius;
             wanderTarget = transform.position + new Vector3(r.x, 0f, r.y);
         }
@@ -467,6 +479,41 @@ public class SimpleTeacherWander : MonoBehaviour
             wanderTarget = br.TransformPoint(new Vector3(lx, localPos.y, lz));
         }
         nextRefreshTime = Time.time + pickNewTargetEverySeconds;
+    }
+
+    private bool TryPickNavMeshWanderTarget(out Vector3 target)
+    {
+        target = transform.position;
+        float radius = Mathf.Max(wanderRadius, navMeshWanderRadius);
+        int attempts = Mathf.Max(1, navMeshWanderAttempts);
+        float minDistanceSqr = arrivalDistance * arrivalDistance * 4f;
+
+        for (int i = 0; i < attempts; i++)
+        {
+            Vector2 offset = Random.insideUnitCircle * radius;
+            Vector3 desired = transform.position + new Vector3(offset.x, 0f, offset.y);
+            if (!NavMesh.SamplePosition(desired, out NavMeshHit hit, 2.5f, NavMesh.AllAreas))
+            {
+                continue;
+            }
+
+            if (Mathf.Abs(hit.position.y - transform.position.y) > navMeshFloorTolerance)
+            {
+                continue;
+            }
+
+            Vector3 flatOffset = hit.position - transform.position;
+            flatOffset.y = 0f;
+            if (flatOffset.sqrMagnitude < minDistanceSqr)
+            {
+                continue;
+            }
+
+            target = hit.position;
+            return true;
+        }
+
+        return false;
     }
 
     private void OnDrawGizmosSelected()

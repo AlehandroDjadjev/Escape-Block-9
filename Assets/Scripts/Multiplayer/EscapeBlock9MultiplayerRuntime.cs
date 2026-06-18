@@ -442,6 +442,51 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         }
     }
 
+    private void EnterFirstPersonGameplayAfterSetup()
+    {
+        if (overlayPanel != null) overlayPanel.SetActive(false);
+        if (roleRevealPanel != null) roleRevealPanel.SetActive(false);
+        if (placementPanel != null) placementPanel.SetActive(false);
+        if (placementDragGhost != null) placementDragGhost.SetActive(false);
+        if (placementMapMarker != null) placementMapMarker.gameObject.SetActive(false);
+
+        DisablePlacementMapView();
+
+        setupPhaseComplete = true;
+        RefreshLocalReferences();
+        SetLocalGameplayEnabled(true);
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+        Debug.Log("[SetupPhase] Setup finalized. First-person gameplay enabled.");
+    }
+
+    private void DisablePlacementMapView()
+    {
+        if (placementMapCamera != null)
+        {
+            placementMapCamera.enabled = false;
+            placementMapCamera.targetTexture = null;
+            placementMapCamera.gameObject.SetActive(false);
+        }
+
+        if (placementMapLight != null)
+        {
+            placementMapLight.gameObject.SetActive(false);
+        }
+
+        if (placementMapImage != null)
+        {
+            placementMapImage.texture = null;
+        }
+
+        if (placementMapTexture != null)
+        {
+            placementMapTexture.Release();
+            DestroyUnityObject(placementMapTexture);
+            placementMapTexture = null;
+        }
+    }
+
     private void PumpLobbySocketKeepAlive()
     {
         if (lobbySocket == null || !lobbySocket.IsOpen || currentLobby == null || gameStarted)
@@ -1078,6 +1123,11 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         generationRequested = true;
         yield return null;
         RefreshLocalReferences();
+        if (localController != null)
+        {
+            localController.ResetStartingFlashlight();
+        }
+
         runtimeGenerator = FindAnyObjectByType<FacilityRuntimeGenerator>();
         if (runtimeGenerator == null)
         {
@@ -1283,6 +1333,8 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             placementMapCamera = camGo.AddComponent<Camera>();
         }
 
+        placementMapCamera.gameObject.SetActive(true);
+        placementMapCamera.enabled = true;
         Bounds b = placementMapWorldBounds;
         Vector3 center = b.center;
         float camY = b.max.y + 10f;
@@ -1540,6 +1592,12 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
 
     private void TryFinalizePlacement()
     {
+        if (setupPhaseComplete)
+        {
+            EnterFirstPersonGameplayAfterSetup();
+            return;
+        }
+
         if (!localPlacementConfirmed || !peerPlacementConfirmed) return;
 
         Vector3? keyPos = localPlayerIsKeyHider ? localChosenKeyWorldPos : peerChosenKeyWorldPos;
@@ -1549,13 +1607,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         Vector3?[] teachers = localPlayerIsKeyHider ? peerTeacherWorldPos : localTeacherWorldPos;
         ApplyTeacherPlacements(teachers);
 
-        if (placementPanel != null) placementPanel.SetActive(false);
-        if (placementMapCamera != null) placementMapCamera.targetTexture = null;
-        // Kill the map-only light so it doesn't blow out the actual gameplay lighting.
-        if (placementMapLight != null) placementMapLight.gameObject.SetActive(false);
-        setupPhaseComplete = true;
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        EnterFirstPersonGameplayAfterSetup();
     }
 
     // Left-side scrollable column with the 10 teachers as draggable portraits.
@@ -1950,8 +2002,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             if (placementTeacherMapMarkers[i] != null) DestroyUnityObject(placementTeacherMapMarkers[i].gameObject);
             placementTeacherMapMarkers[i] = null;
         }
-        if (placementMapCamera != null) placementMapCamera.targetTexture = null;
-        if (placementMapLight != null) placementMapLight.gameObject.SetActive(false);
+        DisablePlacementMapView();
 
         if (gameSocket != null)
         {
@@ -2253,6 +2304,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         gameStarted = false;
         generationReady = false;
         generationRequested = false;
+        setupPhaseComplete = true;
         currentLobby = null;
         localMember = null;
         currentGameStart = null;
@@ -2269,6 +2321,9 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         }
 
         ClearRemotePlayers();
+        DisablePlacementMapView();
+        if (roleRevealPanel != null) roleRevealPanel.SetActive(false);
+        if (placementPanel != null) placementPanel.SetActive(false);
         ShowAuthPanel(guestAuthenticated ? $"Connected as {currentUser?.username}. You can reconnect to a lobby." : "Connect to the hosted backend as a guest.");
     }
 

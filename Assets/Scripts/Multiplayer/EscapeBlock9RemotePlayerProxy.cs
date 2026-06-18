@@ -5,6 +5,12 @@ public sealed class EscapeBlock9RemotePlayerProxy : MonoBehaviour
 {
     private const float PositionLerpSpeed = 10f;
     private const float RotationLerpSpeed = 12f;
+    private const float NameplateVisibleDistance = 4f;
+    private const float NameplateVisibleDistanceSqr = NameplateVisibleDistance * NameplateVisibleDistance;
+
+    private static readonly Color BodyColor = new Color(0.34f, 0.02f, 0.02f, 1f);
+    private static readonly Color DownBodyColor = new Color(0.16f, 0.01f, 0.01f, 1f);
+    private static readonly Color NameplateColor = new Color(1f, 0.62f, 0.58f, 1f);
 
     private Transform bodyTransform;
     private Transform nameplateTransform;
@@ -31,7 +37,7 @@ public sealed class EscapeBlock9RemotePlayerProxy : MonoBehaviour
         CurrentHealth = 100;
         MaxHealth = 100;
         IsDead = false;
-        RefreshHealthVisuals();
+        RefreshPlayerVisuals();
         transform.position = startPosition;
         transform.rotation = startRotation;
         targetPosition = startPosition;
@@ -46,7 +52,7 @@ public sealed class EscapeBlock9RemotePlayerProxy : MonoBehaviour
         }
 
         this.displayName = string.IsNullOrWhiteSpace(displayName) ? $"Player {Slot + 1}" : displayName;
-        RefreshHealthVisuals();
+        RefreshPlayerVisuals();
     }
 
     public void ApplyNetworkState(MultiplayerPlayerStateDto state)
@@ -61,25 +67,21 @@ public sealed class EscapeBlock9RemotePlayerProxy : MonoBehaviour
         MaxHealth = Mathf.Max(1, state.maxHealth);
         CurrentHealth = Mathf.Clamp(state.currentHealth, 0, MaxHealth);
         IsDead = state.isDead || CurrentHealth <= 0;
-        RefreshHealthVisuals();
+        RefreshPlayerVisuals();
     }
 
-    private void RefreshHealthVisuals()
+    private void RefreshPlayerVisuals()
     {
         if (nameplateText != null)
         {
             string nameText = string.IsNullOrWhiteSpace(displayName) ? $"Player {Slot + 1}" : displayName;
-            nameplateText.text = IsDead ? $"{nameText}\nDOWN" : $"{nameText}\nHP {CurrentHealth}/{MaxHealth}";
-            nameplateText.color = IsDead
-                ? new Color(1f, 0.36f, 0.32f, 1f)
-                : new Color(0.92f, 0.95f, 1f, 1f);
+            nameplateText.text = nameText;
+            nameplateText.color = NameplateColor;
         }
 
         if (bodyRenderer != null)
         {
-            bodyRenderer.material.color = IsDead
-                ? new Color(0.42f, 0.1f, 0.1f, 1f)
-                : new Color(0.23f, 0.67f, 0.98f, 1f);
+            bodyRenderer.material.color = IsDead ? DownBodyColor : BodyColor;
         }
     }
 
@@ -91,7 +93,13 @@ public sealed class EscapeBlock9RemotePlayerProxy : MonoBehaviour
         if (nameplateTransform != null && Camera.main != null)
         {
             Vector3 dir = nameplateTransform.position - Camera.main.transform.position;
-            if (dir.sqrMagnitude > 0.001f)
+            bool visible = dir.sqrMagnitude <= NameplateVisibleDistanceSqr;
+            if (nameplateTransform.gameObject.activeSelf != visible)
+            {
+                nameplateTransform.gameObject.SetActive(visible);
+            }
+
+            if (visible && dir.sqrMagnitude > 0.001f)
             {
                 nameplateTransform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
             }
@@ -123,7 +131,7 @@ public sealed class EscapeBlock9RemotePlayerProxy : MonoBehaviour
             bodyRenderer = body.GetComponent<Renderer>();
             if (bodyRenderer != null && Application.isPlaying)
             {
-                bodyRenderer.material.color = new Color(0.23f, 0.67f, 0.98f, 1f);
+                bodyRenderer.material.color = BodyColor;
             }
 
             bodyTransform = body.transform;
@@ -140,10 +148,11 @@ public sealed class EscapeBlock9RemotePlayerProxy : MonoBehaviour
             nameplateText.alignment = TextAlignment.Center;
             nameplateText.characterSize = 0.12f;
             nameplateText.fontSize = 52;
-            nameplateText.color = new Color(0.92f, 0.95f, 1f, 1f);
+            nameplateText.color = NameplateColor;
             nameplateText.text = "Remote Player";
+            nameplate.SetActive(false);
         }
 
-        RefreshHealthVisuals();
+        RefreshPlayerVisuals();
     }
 }
