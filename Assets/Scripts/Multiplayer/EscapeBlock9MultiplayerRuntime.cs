@@ -221,11 +221,105 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         PumpGameSocketKeepAlive();
         PumpLocalStateSync();
         PumpPlacementInput();
+        PumpSetupBeacon();
 
         if (Keyboard.current != null && Keyboard.current.f7Key.wasPressedThisFrame)
         {
             ResetToAuth();
         }
+    }
+
+    // Once the local player has confirmed their placement, repeatedly broadcast it to
+    // the peer (encoded in a player_state, the one message type the relay forwards)
+    // until the peer's placement arrives. Repetition survives packet loss / timing.
+    private float nextSetupBeaconTime;
+    private void PumpSetupBeacon()
+    {
+        if (setupPhaseComplete || !localPlacementConfirmed || peerPlacementConfirmed) return;
+        if (gameSocket == null || !gameSocket.IsOpen || localMember == null) return;
+        if (Time.unscaledTime < nextSetupBeaconTime) return;
+        nextSetupBeaconTime = Time.unscaledTime + 0.4f;
+
+        string payload = EncodeLocalPlacementForBeacon();
+        if (payload == null) return;
+
+        Transform t = localController != null ? localController.transform : transform;
+        var state = MultiplayerPlayerStateDto.FromTransform(
+            localMember.playerId, localMember.userId, ++localStateSeq, t,
+            localController != null ? localController.CurrentVelocity : Vector3.zero);
+        state.animationState = payload; // piggyback the placement on the relayed field
+        gameSocket.SendJson(JsonUtility.ToJson(state));
+    }
+
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    private static string Vec3ToCsv(Vector3 p)
+    {
+        // Invariant culture so decimals use '.', never a locale ',' that would
+        // collide with our comma field separator.
+        return p.x.ToString("F2", Inv) + "," + p.y.ToString("F2", Inv) + "," + p.z.ToString("F2", Inv);
+    }
+
+    private string EncodeLocalPlacementForBeacon()
+    {
+        if (localPlayerIsKeyHider)
+        {
+            if (!localChosenKeyWorldPos.HasValue) return null;
+            return "setupKey:" + Vec3ToCsv(localChosenKeyWorldPos.Value);
+        }
+
+        var sb = new System.Text.StringBuilder("setupTea:");
+        for (int i = 0; i < TeacherSlots.Length; i++)
+        {
+            if (i > 0) sb.Append('|');
+            sb.Append(Vec3ToCsv(localTeacherWorldPos[i] ?? Vector3.zero));
+        }
+        return sb.ToString();
+    }
+
+    // Parse a peer's beacon out of the animationState string and treat it as their
+    // confirmed placement. Safe to call on every player_state — non-setup strings
+    // (e.g. "idle") are ignored.
+    private void TryDecodeSetupBeacon(string anim)
+    {
+        if (string.IsNullOrEmpty(anim)) return;
+
+        if (anim.StartsWith("setupKey:"))
+        {
+            string body = anim.Substring("setupKey:".Length);
+            if (TryParseVec3(body, out Vector3 key))
+            {
+                peerChosenKeyWorldPos = key;
+                if (!peerPlacementConfirmed) Debug.Log("[SetupPhase] Received peer KEY placement beacon.");
+                peerPlacementConfirmed = true;
+                TryFinalizePlacement();
+            }
+        }
+        else if (anim.StartsWith("setupTea:"))
+        {
+            string body = anim.Substring("setupTea:".Length);
+            string[] parts = body.Split('|');
+            if (parts.Length == TeacherSlots.Length)
+            {
+                for (int i = 0; i < parts.Length; i++)
+                    if (TryParseVec3(parts[i], out Vector3 p)) peerTeacherWorldPos[i] = p;
+                if (!peerPlacementConfirmed) Debug.Log("[SetupPhase] Received peer TEACHER placement beacon.");
+                peerPlacementConfirmed = true;
+                TryFinalizePlacement();
+            }
+        }
+    }
+
+    private static bool TryParseVec3(string csv, out Vector3 v)
+    {
+        v = Vector3.zero;
+        string[] c = csv.Split(',');
+        if (c.Length != 3) return false;
+        if (!float.TryParse(c[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x)) return false;
+        if (!float.TryParse(c[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float y)) return false;
+        if (!float.TryParse(c[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float z)) return false;
+        v = new Vector3(x, y, z);
+        return true;
     }
 
     // While the placement panel is up and the local player is the Key Hider, a
@@ -1018,6 +1112,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         peerChosenKeyWorldPos = null;
         localPlacementConfirmed = false;
         peerPlacementConfirmed = false;
+        placementFinalized = false;
         for (int i = 0; i < TeacherSlots.Length; i++)
         {
             localTeacherWorldPos[i] = null;
@@ -1292,9 +1387,13 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         TryFinalizePlacement();
     }
 
+    private bool placementFinalized;
     private void TryFinalizePlacement()
     {
+        if (placementFinalized) return; // late beacons must not re-spawn
         if (!localPlacementConfirmed || !peerPlacementConfirmed) return;
+        placementFinalized = true;
+        Debug.Log("[SetupPhase] Both players confirmed — spawning key and teachers, starting game.");
 
         Vector3? keyPos = localPlayerIsKeyHider ? localChosenKeyWorldPos : peerChosenKeyWorldPos;
         if (keyPos.HasValue) SpawnKeyAt(keyPos.Value);
@@ -1651,6 +1750,10 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         {
             return;
         }
+
+        // The hosted relay only forwards player_state (not our custom setup_placement),
+        // so the peer's placement piggybacks in the animationState field. Decode it.
+        TryDecodeSetupBeacon(state.animationState);
 
         MultiplayerLobbyMemberDto member = FindMember(state.userId);
         Vector3 position = MultiplayerJson.ArrayToVector(state.position);
