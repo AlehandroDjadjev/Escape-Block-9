@@ -68,6 +68,10 @@ public class SimpleTeacherWander : MonoBehaviour
     public string NetworkStateName => state.ToString();
     public Vector3 LastKnownPlayerPosition => lastKnownPlayerPosition;
 
+    /// <summary>True while this teacher is actively chasing the player (used to
+    /// switch the game music to the tense chase track).</summary>
+    public bool IsChasing => state == AIState.Chase;
+
     private static readonly (float xMin, float xMax, float zMin, float zMax)[] Corridors =
     {
         (7.8f,   9.2f, 13.0f, 32.0f),
