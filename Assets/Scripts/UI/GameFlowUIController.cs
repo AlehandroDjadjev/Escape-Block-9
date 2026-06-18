@@ -21,6 +21,7 @@ public class GameFlowUIController : MonoBehaviour
     [SerializeField] private FirstPersonController firstPersonController;
     [SerializeField] private PlayerItemInteractor itemInteractor;
     [SerializeField] private PlayerEntityInteractor entityInteractor;
+    [SerializeField] private PlayerHealth playerHealth;
 
     private FlowState currentState = FlowState.Playing;
     private Canvas rootCanvas;
@@ -29,6 +30,7 @@ public class GameFlowUIController : MonoBehaviour
     private GameObject victoryPanel;
     private GameObject hudPanel;
     private Text runTimerText;
+    private Text healthText;
     private bool initialized;
     private bool trackRunTimer;
     private float currentRunElapsedSeconds;
@@ -88,19 +90,37 @@ public class GameFlowUIController : MonoBehaviour
             entityInteractor = GetComponent<PlayerEntityInteractor>();
         }
 
+        if (playerHealth == null)
+        {
+            playerHealth = GetComponent<PlayerHealth>();
+        }
+
+        if (playerHealth == null)
+        {
+            playerHealth = gameObject.AddComponent<PlayerHealth>();
+        }
+
         BuildUi();
         EnsureEventSystem();
+        RefreshHealthSubscription();
         initialized = true;
     }
 
     private void OnEnable()
     {
         EntityCinemachineDollyFollower.PlayerCaught += OnPlayerCaught;
+        PlayerHealth.AnyPlayerDied += OnAnyPlayerDied;
+        RefreshHealthSubscription();
     }
 
     private void OnDisable()
     {
         EntityCinemachineDollyFollower.PlayerCaught -= OnPlayerCaught;
+        PlayerHealth.AnyPlayerDied -= OnAnyPlayerDied;
+        if (playerHealth != null)
+        {
+            playerHealth.HealthChanged -= OnHealthChanged;
+        }
     }
 
     private void Update()
@@ -120,10 +140,28 @@ public class GameFlowUIController : MonoBehaviour
 
     private void OnPlayerCaught(EntityCinemachineDollyFollower _)
     {
-        if (currentState == FlowState.Playing)
+        if (currentState != FlowState.Playing)
         {
-            EnterGameOver();
+            return;
         }
+
+        if (playerHealth != null)
+        {
+            playerHealth.TakeDamage(playerHealth.MaxHealth, "Teacher caught player");
+            return;
+        }
+
+        EnterGameOver();
+    }
+
+    private void OnAnyPlayerDied(PlayerHealth deadPlayer)
+    {
+        if (deadPlayer != playerHealth || currentState != FlowState.Playing)
+        {
+            return;
+        }
+
+        EnterGameOver();
     }
 
     private void BuildUi()
@@ -165,6 +203,11 @@ public class GameFlowUIController : MonoBehaviour
         RectTransform timerRect = runTimerText.rectTransform;
         timerRect.pivot = new Vector2(0f, 1f);
         timerRect.anchoredPosition = new Vector2(0f, -10f);
+
+        healthText = CreateText(hudPanel.transform, "Health", "HP 100/100", font, 22, new Vector2(0f, 1f), new Vector2(220f, 32f), Color.white);
+        RectTransform healthRect = healthText.rectTransform;
+        healthRect.pivot = new Vector2(0f, 1f);
+        healthRect.anchoredPosition = new Vector2(0f, -44f);
     }
 
     private static GameObject CreateMenuPanel(Transform parent, string name, Font font, string title)
@@ -423,6 +466,26 @@ public class GameFlowUIController : MonoBehaviour
         if (runTimerText != null)
         {
             runTimerText.text = $"Time {FormatElapsedTime(currentRunElapsedSeconds)}";
+        }
+    }
+
+    private void RefreshHealthSubscription()
+    {
+        if (playerHealth == null)
+        {
+            return;
+        }
+
+        playerHealth.HealthChanged -= OnHealthChanged;
+        playerHealth.HealthChanged += OnHealthChanged;
+        OnHealthChanged(playerHealth.CurrentHealth, playerHealth.MaxHealth);
+    }
+
+    private void OnHealthChanged(int current, int max)
+    {
+        if (healthText != null)
+        {
+            healthText.text = $"HP {current}/{max}";
         }
     }
 

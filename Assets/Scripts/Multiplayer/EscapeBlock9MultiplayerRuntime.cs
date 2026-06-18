@@ -196,11 +196,12 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         CreateMenuDecor(authPanel.transform);
         Text authTitle = CreateText(authPanel.transform, "AuthTitle", "ESCAPE BLOCK 9", font, 68, new Vector2(0.5f, 0.82f), new Vector2(980f, 92f), new Color(1f, 0.95f, 0.78f, 1f));
         AddTextOutline(authTitle, new Color(0.55f, 0f, 0.02f, 1f), new Vector2(3f, -3f));
-        GameObject authCard = CreatePanel(authPanel.transform, "AuthCard", panel, new Vector2(0.5f, 0.47f), new Vector2(780f, 370f));
+        GameObject authCard = CreatePanel(authPanel.transform, "AuthCard", panel, new Vector2(0.5f, 0.47f), new Vector2(780f, 430f));
         CreateText(authCard.transform, "ServerLabel", "Backend Address", font, 21, new Vector2(0.5f, 0.8f), new Vector2(640f, 34f), new Color(0.88f, 0.8f, 0.58f, 1f));
         serverUrlInput = CreateInputField(authCard.transform, "ServerInput", font, new Vector2(0.5f, 0.63f), new Vector2(640f, 54f), api.BaseHttpUrl);
         connectGuestButton = CreateButton(authCard.transform, "ConnectGuestButton", "Claim Guest Badge", font, new Vector2(0.5f, 0.38f), new Vector2(340f, 60f), accent, OnConnectGuestPressed);
-        authStatusText = CreateText(authCard.transform, "AuthStatus", string.Empty, font, 18, new Vector2(0.5f, 0.16f), new Vector2(660f, 76f), new Color(0.9f, 0.9f, 0.82f, 1f));
+        CreateButton(authCard.transform, "SingleplayerTestButton", "Start Singleplayer Test", font, new Vector2(0.5f, 0.2f), new Vector2(340f, 54f), gold, OnSingleplayerTestPressed);
+        authStatusText = CreateText(authCard.transform, "AuthStatus", string.Empty, font, 18, new Vector2(0.5f, 0.06f), new Vector2(660f, 76f), new Color(0.9f, 0.9f, 0.82f, 1f));
 
         lobbyPanel = CreateFullScreenPanel(rootCanvas.transform, "LobbyPanel", ink);
         CreateMenuDecor(lobbyPanel.transform);
@@ -437,6 +438,34 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             localMember = result.Value.member;
             EnterLobby(result.Value.lobby);
         }));
+    }
+
+    private void OnSingleplayerTestPressed()
+    {
+        StopLobbyMusic();
+        suppressBuiltInUi = false;
+        gameStarted = false;
+        generationReady = false;
+        generationRequested = false;
+        authPanel.SetActive(false);
+        lobbyPanel.SetActive(false);
+        overlayPanel.SetActive(false);
+
+        runtimeGenerator = FindAnyObjectByType<FacilityRuntimeGenerator>();
+        if (runtimeGenerator == null)
+        {
+            GameObject generatorObject = new GameObject("FacilityRuntimeGenerator");
+            runtimeGenerator = generatorObject.AddComponent<FacilityRuntimeGenerator>();
+        }
+
+        runtimeGenerator.ConfigurePreviewConnectedRoomLayout(12);
+        runtimeGenerator.RandomizeSeedAndGenerate();
+
+        GameFlowUIController flowController = FindAnyObjectByType<GameFlowUIController>();
+        if (flowController != null)
+        {
+            flowController.BeginSingleplayerTestSession();
+        }
     }
 
     private void OnReadyPressed()

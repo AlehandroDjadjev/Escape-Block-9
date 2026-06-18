@@ -53,6 +53,11 @@ public class FirstPersonController : MonoBehaviour
 
     private void Awake()
     {
+        if (GetComponent<PlayerHealth>() == null)
+        {
+            gameObject.AddComponent<PlayerHealth>();
+        }
+
         characterController = GetComponent<CharacterController>();
         inventory = GetComponent<SingleItemInventory>();
         standingHeight = characterController.height;

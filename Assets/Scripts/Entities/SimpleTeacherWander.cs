@@ -20,6 +20,11 @@ public class SimpleTeacherWander : MonoBehaviour
     [SerializeField] private float turnSpeed = 6f;
     [SerializeField] private float chaseTurnSpeed = 10f;
 
+    [Header("Player Damage")]
+    [SerializeField] private int contactDamage = 20;
+    [SerializeField] private float contactDamageDistance = 1.15f;
+    [SerializeField] private float contactDamageCooldown = 1.25f;
+
     // The teacher prefabs are authored with their visible face on the model's -Z side
     // (root prefab is rotated -180° in the editor). LookRotation points the GameObject's
     // +Z at the target, so we have to rotate an extra 180° around Y to bring the face
@@ -49,6 +54,9 @@ public class SimpleTeacherWander : MonoBehaviour
     private Vector3 lastKnownPlayerPosition;
     private float nextRefreshTime;
     private float giveUpInvestigatingAt;
+    private float nextContactDamageTime;
+    private float externalSpeedMultiplier = 1f;
+    private Coroutine speedMultiplierRoutine;
 
     private Vector3 stuckCheckLastPos;
     private float stuckCheckLastTime;
@@ -172,6 +180,8 @@ public class SimpleTeacherWander : MonoBehaviour
             hasDesiredFace = true;
             isChasingFace = false;
         }
+
+        TryDealContactDamage();
     }
 
     private void LateUpdate()
@@ -289,11 +299,49 @@ public class SimpleTeacherWander : MonoBehaviour
                 break;
         }
 
+        speed *= externalSpeedMultiplier;
         to.y = 0f;
         float d = to.magnitude;
         if (d < arrivalDistance) { dir = Vector3.zero; return false; }
         dir = to / d;
         return true;
+    }
+
+    public void ApplyTemporarySpeedMultiplier(float multiplier, float duration)
+    {
+        if (speedMultiplierRoutine != null)
+        {
+            StopCoroutine(speedMultiplierRoutine);
+        }
+
+        speedMultiplierRoutine = StartCoroutine(SpeedMultiplierRoutine(multiplier, duration));
+    }
+
+    private System.Collections.IEnumerator SpeedMultiplierRoutine(float multiplier, float duration)
+    {
+        externalSpeedMultiplier = Mathf.Max(0.1f, multiplier);
+        yield return new WaitForSeconds(Mathf.Max(0f, duration));
+        externalSpeedMultiplier = 1f;
+        speedMultiplierRoutine = null;
+    }
+
+    private void TryDealContactDamage()
+    {
+        if (state != AIState.Chase || player == null || Time.time < nextContactDamageTime)
+        {
+            return;
+        }
+
+        float distance = Vector3.Distance(transform.position, player.position);
+        if (distance > contactDamageDistance)
+        {
+            return;
+        }
+
+        if (PlayerHealth.TryDamage(player, contactDamage, $"{name} chase contact", gameObject))
+        {
+            nextContactDamageTime = Time.time + contactDamageCooldown;
+        }
     }
 
     private bool HasLineOfSightOnPlayer()
