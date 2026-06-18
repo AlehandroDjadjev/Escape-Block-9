@@ -231,8 +231,7 @@ namespace EscapeBlock9.ProcGen.Runtime
                 ValidateEnemySpawns(populationReport, errors);
                 CacheMultiplayerSpawnPoints(layout, instanceTiles);
                 PlacePlayer(populationReport, graph, layout, instanceTiles, errors);
-                // TODO: re-enable once Unity picks up FacilityHorrorVisualPass.cs (Assets → Reimport All).
-                // FacilityHorrorVisualPass.Apply(generatedRoot.transform, instanceTiles, layout.Seed);
+                FacilityHorrorVisualPass.Apply(generatedRoot.transform, instanceTiles, layout.Seed);
 
                 float durationSeconds = Time.realtimeSinceStartup - startTimestamp;
                 lastGenerationDurationSeconds = durationSeconds;

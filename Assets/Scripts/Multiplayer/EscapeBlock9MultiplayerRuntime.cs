@@ -18,6 +18,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     private const string SavedServerUrlKey = "eb9_multiplayer_server_url";
     private const string LobbyMusicPath = @"C:\Users\sashk\Documents\codenes";
     private const float StateSendInterval = 1f / 20f;
+    private const float SharedObjectStateSendInterval = 1f / 10f;
     private const float ForcedStateSendInterval = 0.5f;
     private const float MinPositionDeltaSqr = 0.0004f;
     private const float MinRotationDelta = 1.5f;
@@ -65,6 +66,16 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     private float lastStateSendTime;
     private Vector3 lastSentPosition;
     private Vector3 lastSentEulerAngles;
+    private int lastSentHealth = -1;
+    private int lastSentMaxHealth = -1;
+    private bool lastSentDead;
+    private float nextSharedObjectStateSendTime;
+    private int localKeyStateSeq;
+    private Vector3 lastSentKeyPosition;
+    private Vector3 lastSentKeyEulerAngles;
+    private bool lastSentKeyHeld;
+    private string lastSentKeyHolderPlayerId;
+    private readonly Dictionary<string, int> localTeacherStateSeq = new Dictionary<string, int>();
 
     private Canvas rootCanvas;
     private GameObject authPanel;
@@ -133,6 +144,8 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     private readonly List<PlayerSlotView> slotViews = new List<PlayerSlotView>();
 
     private FirstPersonController localController;
+    private PlayerHealth localHealth;
+    private SingleItemInventory localInventory;
     private PlayerItemInteractor localItemInteractor;
     private PlayerEntityInteractor localEntityInteractor;
     private FacilityRuntimeGenerator runtimeGenerator;
@@ -140,6 +153,8 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
     private Coroutine lobbyMusicRoutine;
     private readonly Dictionary<string, EscapeBlock9RemotePlayerProxy> remotePlayers = new Dictionary<string, EscapeBlock9RemotePlayerProxy>();
     private readonly Dictionary<int, MultiplayerLobbyMemberDto> lobbyMembersByUserId = new Dictionary<int, MultiplayerLobbyMemberDto>();
+    private GameObject spawnedKeyObject;
+    private ItemPickup spawnedKeyPickup;
 
     public static bool ShouldSuppressBuiltInUi => instance != null && instance.suppressBuiltInUi;
     public static bool ControlsProceduralGeneration => instance != null && instance.suppressBuiltInUi;
@@ -220,6 +235,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         PumpLobbySocketKeepAlive();
         PumpGameSocketKeepAlive();
         PumpLocalStateSync();
+        PumpSharedObjectStateSync();
         PumpPlacementInput();
         PumpSetupBeacon();
 
@@ -464,6 +480,16 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             localController = FindAnyObjectByType<FirstPersonController>();
         }
 
+        if (localHealth == null && localController != null)
+        {
+            localHealth = localController.GetComponent<PlayerHealth>();
+        }
+
+        if (localInventory == null && localController != null)
+        {
+            localInventory = localController.GetComponent<SingleItemInventory>();
+        }
+
         if (localItemInteractor == null)
         {
             localItemInteractor = FindAnyObjectByType<PlayerItemInteractor>();
@@ -569,9 +595,15 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         Transform target = localController.transform;
         Vector3 position = target.position;
         Vector3 eulerAngles = target.eulerAngles;
+        int currentHealth = localHealth != null ? localHealth.CurrentHealth : 100;
+        int maxHealth = localHealth != null ? localHealth.MaxHealth : 100;
+        bool isDead = localHealth != null && localHealth.IsDead;
         bool shouldSend = localStateSeq == 0
             || (position - lastSentPosition).sqrMagnitude >= MinPositionDeltaSqr
             || Quaternion.Angle(Quaternion.Euler(lastSentEulerAngles), Quaternion.Euler(eulerAngles)) >= MinRotationDelta
+            || currentHealth != lastSentHealth
+            || maxHealth != lastSentMaxHealth
+            || isDead != lastSentDead
             || Time.unscaledTime - lastStateSendTime >= ForcedStateSendInterval;
         if (!shouldSend)
         {
@@ -585,11 +617,119 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             localMember.userId,
             ++localStateSeq,
             target,
-            localController.CurrentVelocity);
+            localController.CurrentVelocity,
+            localHealth);
         gameSocket.SendJson(JsonUtility.ToJson(state));
         lastSentPosition = position;
         lastSentEulerAngles = eulerAngles;
+        lastSentHealth = currentHealth;
+        lastSentMaxHealth = maxHealth;
+        lastSentDead = isDead;
         lastStateSendTime = Time.unscaledTime;
+    }
+
+    private void PumpSharedObjectStateSync()
+    {
+        if (!gameStarted || !generationReady || !setupPhaseComplete || gameSocket == null || !gameSocket.IsOpen || localMember == null)
+        {
+            return;
+        }
+
+        if (Time.unscaledTime < nextSharedObjectStateSendTime)
+        {
+            return;
+        }
+
+        nextSharedObjectStateSendTime = Time.unscaledTime + SharedObjectStateSendInterval;
+
+        if (!localPlayerIsKeyHider)
+        {
+            SendTeacherStates();
+        }
+
+        SendKeyStateIfAuthoritative();
+    }
+
+    private void SendTeacherStates()
+    {
+        foreach (SimpleTeacherWander teacher in FindObjectsByType<SimpleTeacherWander>(FindObjectsSortMode.None))
+        {
+            string teacherId = ExtractTeacherId(teacher.gameObject.name);
+            if (string.IsNullOrWhiteSpace(teacherId))
+            {
+                continue;
+            }
+
+            teacher.SetNetworkControlled(false);
+            if (!localTeacherStateSeq.TryGetValue(teacherId, out int seq))
+            {
+                seq = 0;
+            }
+
+            localTeacherStateSeq[teacherId] = ++seq;
+            MultiplayerTeacherStateDto dto = new MultiplayerTeacherStateDto
+            {
+                type = "teacher_state",
+                lobbyId = currentGameStart != null ? currentGameStart.lobbyId : 0,
+                teacherId = teacherId,
+                authoritativeUserId = localMember.userId,
+                seq = seq,
+                position = MultiplayerJson.VectorToArray(teacher.transform.position),
+                rotation = MultiplayerJson.VectorToArray(teacher.transform.eulerAngles),
+                aiState = teacher.NetworkStateName,
+                canSeePlayer = teacher.CanSeePlayer,
+                lastKnownPlayerPosition = MultiplayerJson.VectorToArray(teacher.LastKnownPlayerPosition)
+            };
+            gameSocket.SendJson(JsonUtility.ToJson(dto));
+        }
+    }
+
+    private void SendKeyStateIfAuthoritative()
+    {
+        ItemPickup key = ResolveCurrentKeyPickup(out bool heldByLocalPlayer);
+        if (key == null)
+        {
+            return;
+        }
+
+        bool canAuthorKey = heldByLocalPlayer || localPlayerIsKeyHider || lastSentKeyHeld;
+        if (!canAuthorKey)
+        {
+            return;
+        }
+
+        Transform keyTransform = key.transform;
+        string holderPlayerId = heldByLocalPlayer && localMember != null ? localMember.playerId : string.Empty;
+        Vector3 position = keyTransform.position;
+        Vector3 eulerAngles = keyTransform.eulerAngles;
+        bool shouldSend = localKeyStateSeq == 0
+            || (position - lastSentKeyPosition).sqrMagnitude >= MinPositionDeltaSqr
+            || Quaternion.Angle(Quaternion.Euler(lastSentKeyEulerAngles), Quaternion.Euler(eulerAngles)) >= MinRotationDelta
+            || heldByLocalPlayer != lastSentKeyHeld
+            || !string.Equals(holderPlayerId, lastSentKeyHolderPlayerId, StringComparison.Ordinal);
+
+        if (!shouldSend)
+        {
+            return;
+        }
+
+        MultiplayerKeyStateDto dto = new MultiplayerKeyStateDto
+        {
+            type = "key_state",
+            lobbyId = currentGameStart != null ? currentGameStart.lobbyId : 0,
+            keyId = key.ItemId,
+            authoritativeUserId = localMember.userId,
+            seq = ++localKeyStateSeq,
+            position = MultiplayerJson.VectorToArray(position),
+            rotation = MultiplayerJson.VectorToArray(eulerAngles),
+            isHeld = heldByLocalPlayer,
+            holderPlayerId = holderPlayerId
+        };
+        gameSocket.SendJson(JsonUtility.ToJson(dto));
+        lastSentKeyPosition = position;
+        lastSentKeyEulerAngles = eulerAngles;
+        lastSentKeyHeld = heldByLocalPlayer;
+        lastSentKeyHolderPlayerId = holderPlayerId;
     }
 
     private void OnConnectGuestPressed()
@@ -864,6 +1004,8 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             case "room_snapshot":
             {
                 MultiplayerRoomSnapshotDto snapshot = JsonUtility.FromJson<MultiplayerRoomSnapshotDto>(json);
+                HandleSetupSnapshot(snapshot.setup);
+                HandleSetupSnapshot(snapshot.setupFinalized);
                 if (snapshot.players != null)
                 {
                     for (int i = 0; i < snapshot.players.Length; i++)
@@ -871,6 +1013,14 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
                         ApplyRemotePlayerState(snapshot.players[i]);
                     }
                 }
+                if (snapshot.teachers != null)
+                {
+                    for (int i = 0; i < snapshot.teachers.Length; i++)
+                    {
+                        ApplyTeacherState(snapshot.teachers[i]);
+                    }
+                }
+                ApplyKeyState(snapshot.keyState);
                 break;
             }
             case "player_state":
@@ -878,6 +1028,18 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
                 break;
             case "setup_placement":
                 HandleRemotePlacement(JsonUtility.FromJson<MultiplayerSetupPlacementDto>(json));
+                break;
+            case "setup_snapshot":
+                HandleSetupSnapshot(JsonUtility.FromJson<MultiplayerSetupSnapshotDto>(json));
+                break;
+            case "setup_finalized":
+                HandleSetupFinalized(JsonUtility.FromJson<MultiplayerSetupSnapshotDto>(json));
+                break;
+            case "teacher_state":
+                ApplyTeacherState(JsonUtility.FromJson<MultiplayerTeacherStateDto>(json));
+                break;
+            case "key_state":
+                ApplyKeyState(JsonUtility.FromJson<MultiplayerKeyStateDto>(json));
                 break;
             case "player_left":
             {
@@ -973,6 +1135,19 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         gameStarted = true;
         generationReady = false;
         generationRequested = false;
+        setupPhaseComplete = false;
+        localPlacementConfirmed = false;
+        peerPlacementConfirmed = false;
+        localKeyStateSeq = 0;
+        localTeacherStateSeq.Clear();
+        lastSentHealth = -1;
+        lastSentMaxHealth = -1;
+        lastSentDead = false;
+        lastSentKeyPosition = Vector3.positiveInfinity;
+        lastSentKeyEulerAngles = Vector3.positiveInfinity;
+        lastSentKeyHeld = false;
+        lastSentKeyHolderPlayerId = string.Empty;
+        nextSharedObjectStateSendTime = 0f;
         StopLobbyMusic();
         lobbyPanel.SetActive(false);
         overlayPanel.SetActive(true);
@@ -1326,7 +1501,6 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         localPlacementConfirmed = true;
         SendLocalPlacement();
         UpdatePlacementUiForRole();
-        TryFinalizePlacement();
     }
 
     private void SendLocalPlacement()
@@ -1361,6 +1535,78 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         gameSocket.SendJson(JsonUtility.ToJson(dto));
     }
 
+    private void HandleSetupSnapshot(MultiplayerSetupSnapshotDto dto)
+    {
+        if (dto == null)
+        {
+            return;
+        }
+
+        if (dto.isFinalized || string.Equals(dto.type, "setup_finalized", StringComparison.Ordinal))
+        {
+            HandleSetupFinalized(dto);
+            return;
+        }
+
+        if (dto.keyPosition != null && dto.keyPosition.Length == 3)
+        {
+            if (localPlayerIsKeyHider)
+            {
+                localChosenKeyWorldPos ??= MultiplayerJson.ArrayToVector(dto.keyPosition);
+            }
+            else
+            {
+                peerChosenKeyWorldPos = MultiplayerJson.ArrayToVector(dto.keyPosition);
+            }
+        }
+
+        if (dto.teacherPositionsX != null && dto.teacherPositionsY != null && dto.teacherPositionsZ != null)
+        {
+            Vector3?[] target = localPlayerIsKeyHider ? peerTeacherWorldPos : localTeacherWorldPos;
+            CopyTeacherPositionsFromArrays(dto.teacherPositionsX, dto.teacherPositionsY, dto.teacherPositionsZ, target);
+        }
+
+        UpdatePlacementUiForRole();
+    }
+
+    private void HandleSetupFinalized(MultiplayerSetupSnapshotDto dto)
+    {
+        if (dto == null)
+        {
+            return;
+        }
+
+        if (dto.keyPosition != null && dto.keyPosition.Length == 3)
+        {
+            peerChosenKeyWorldPos = MultiplayerJson.ArrayToVector(dto.keyPosition);
+            localChosenKeyWorldPos ??= peerChosenKeyWorldPos;
+        }
+
+        Vector3?[] finalizedTeachers = localPlayerIsKeyHider ? peerTeacherWorldPos : localTeacherWorldPos;
+        if (dto.teacherPositionsX != null && dto.teacherPositionsY != null && dto.teacherPositionsZ != null)
+        {
+            CopyTeacherPositionsFromArrays(dto.teacherPositionsX, dto.teacherPositionsY, dto.teacherPositionsZ, finalizedTeachers);
+        }
+
+        localPlacementConfirmed = true;
+        peerPlacementConfirmed = true;
+        TryFinalizePlacement();
+    }
+
+    private static void CopyTeacherPositionsFromArrays(float[] x, float[] y, float[] z, Vector3?[] target)
+    {
+        if (x == null || y == null || z == null || target == null)
+        {
+            return;
+        }
+
+        int count = Mathf.Min(Mathf.Min(target.Length, x.Length), Mathf.Min(y.Length, z.Length));
+        for (int i = 0; i < count; i++)
+        {
+            target[i] = new Vector3(x[i], y[i], z[i]);
+        }
+    }
+
     private void HandleRemotePlacement(MultiplayerSetupPlacementDto dto)
     {
         if (dto == null) return;
@@ -1384,7 +1630,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             }
         }
 
-        TryFinalizePlacement();
+        UpdatePlacementUiForRole();
     }
 
     private bool placementFinalized;
@@ -1599,6 +1845,53 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         return n;
     }
 
+    private static string ExtractTeacherId(string objectName)
+    {
+        if (string.IsNullOrWhiteSpace(objectName))
+        {
+            return string.Empty;
+        }
+
+        string cleanName = objectName.Replace("(Clone)", string.Empty).Trim();
+        const string prefix = "Teacher_";
+        if (!cleanName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        return cleanName.Substring(prefix.Length);
+    }
+
+    private ItemPickup ResolveCurrentKeyPickup(out bool heldByLocalPlayer)
+    {
+        heldByLocalPlayer = false;
+        if (localInventory != null && localInventory.HeldPickup != null &&
+            string.Equals(localInventory.HeldPickup.ItemId, "objective_exit_key", StringComparison.OrdinalIgnoreCase))
+        {
+            heldByLocalPlayer = true;
+            return localInventory.HeldPickup;
+        }
+
+        if (spawnedKeyPickup != null)
+        {
+            return spawnedKeyPickup;
+        }
+
+        ItemPickup[] pickups = FindObjectsByType<ItemPickup>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < pickups.Length; i++)
+        {
+            if (pickups[i] != null &&
+                string.Equals(pickups[i].ItemId, "objective_exit_key", StringComparison.OrdinalIgnoreCase))
+            {
+                spawnedKeyPickup = pickups[i];
+                spawnedKeyObject = pickups[i].gameObject;
+                return spawnedKeyPickup;
+            }
+        }
+
+        return null;
+    }
+
     // After both confirms arrive, move each teacher GameObject in the scene to the
     // placement chosen for it. Uses the slug suffix on the GameObject name to bind
     // slot index → teacher; the order matches the array on the wire.
@@ -1610,10 +1903,8 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         var teacherBySlug = new Dictionary<string, SimpleTeacherWander>(TeacherSlots.Length);
         foreach (var teacher in FindObjectsByType<SimpleTeacherWander>(FindObjectsSortMode.None))
         {
-            string name = teacher.gameObject.name;
-            const string prefix = "Teacher_";
-            if (!name.StartsWith(prefix)) continue;
-            string slug = name.Substring(prefix.Length);
+            string slug = ExtractTeacherId(teacher.gameObject.name);
+            if (string.IsNullOrWhiteSpace(slug)) continue;
             teacherBySlug[slug] = teacher;
         }
 
@@ -1623,18 +1914,29 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             if (!positionsByIndex[i].HasValue) continue;
             if (!teacherBySlug.TryGetValue(TeacherSlots[i].slug, out var teacher)) continue;
             teacher.transform.position = positionsByIndex[i].Value;
+            teacher.SetNetworkControlled(localPlayerIsKeyHider);
             moved++;
         }
         Debug.Log($"[SetupPhase] Teachers moved to placed positions: {moved}/{TeacherSlots.Length}.");
     }
 
-    private void SpawnKeyAt(Vector3 worldPos)
+    private GameObject SpawnKeyAt(Vector3 worldPos)
     {
+        if (spawnedKeyObject != null)
+        {
+            DestroyUnityObject(spawnedKeyObject);
+            spawnedKeyObject = null;
+            spawnedKeyPickup = null;
+        }
+
         // Remove any key the procedural generator already dropped, so there's exactly
         // one key — at the spot the Key Hider chose.
         foreach (var go in FindObjectsByType<GameObject>(FindObjectsSortMode.None))
         {
-            if (go.name.StartsWith("KeyItem")) DestroyUnityObject(go);
+            if (go != null && go.name.StartsWith("KeyItem", StringComparison.Ordinal))
+            {
+                DestroyUnityObject(go);
+            }
         }
 
         GameObject keyPrefab = Resources.Load<GameObject>("KeyItem");
@@ -1645,11 +1947,82 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
         if (keyPrefab == null)
         {
             Debug.LogWarning("[SetupPhase] KeyItem prefab not found; key will not spawn.");
+            return null;
+        }
+
+        spawnedKeyObject = Instantiate(keyPrefab, worldPos, Quaternion.identity);
+        spawnedKeyObject.name = "KeyItem";
+        spawnedKeyPickup = spawnedKeyObject.GetComponent<ItemPickup>();
+        Debug.Log($"[SetupPhase] Key spawned at {worldPos}.");
+        return spawnedKeyObject;
+    }
+
+    private void ApplyTeacherState(MultiplayerTeacherStateDto state)
+    {
+        if (state == null || state.seq <= 0 || string.IsNullOrWhiteSpace(state.teacherId))
+        {
             return;
         }
-        GameObject key = Instantiate(keyPrefab, worldPos, Quaternion.identity);
-        key.name = "KeyItem";
-        Debug.Log($"[SetupPhase] Key spawned at {worldPos}.");
+
+        if (!localPlayerIsKeyHider && localMember != null && state.authoritativeUserId == localMember.userId)
+        {
+            return;
+        }
+
+        foreach (SimpleTeacherWander teacher in FindObjectsByType<SimpleTeacherWander>(FindObjectsSortMode.None))
+        {
+            string teacherId = ExtractTeacherId(teacher.gameObject.name);
+            if (!string.Equals(teacherId, state.teacherId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            teacher.SetNetworkControlled(true);
+            teacher.ApplyNetworkState(
+                MultiplayerJson.ArrayToVector(state.position),
+                MultiplayerJson.ArrayToVector(state.rotation),
+                state.aiState,
+                state.canSeePlayer,
+                MultiplayerJson.ArrayToVector(state.lastKnownPlayerPosition));
+            return;
+        }
+    }
+
+    private void ApplyKeyState(MultiplayerKeyStateDto state)
+    {
+        if (state == null || state.seq <= 0)
+        {
+            return;
+        }
+
+        bool heldLocally = localInventory != null &&
+            localInventory.HeldPickup != null &&
+            string.Equals(localInventory.HeldPickup.ItemId, "objective_exit_key", StringComparison.OrdinalIgnoreCase);
+
+        if (heldLocally && string.Equals(state.holderPlayerId, localMember?.playerId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        ItemPickup key = ResolveCurrentKeyPickup(out _);
+        if (key == null && !state.isHeld)
+        {
+            GameObject keyObject = SpawnKeyAt(MultiplayerJson.ArrayToVector(state.position));
+            key = keyObject != null ? keyObject.GetComponent<ItemPickup>() : null;
+        }
+
+        if (key == null)
+        {
+            return;
+        }
+
+        bool heldByRemote = state.isHeld && !string.Equals(state.holderPlayerId, localMember?.playerId, StringComparison.Ordinal);
+        key.gameObject.SetActive(!heldByRemote);
+        if (!heldByRemote)
+        {
+            key.transform.position = MultiplayerJson.ArrayToVector(state.position);
+            key.transform.rotation = Quaternion.Euler(MultiplayerJson.ArrayToVector(state.rotation));
+        }
     }
 
     private void HandlePlayerEscaped()

@@ -36,7 +36,7 @@ public class FirstPersonController : MonoBehaviour
     [SerializeField] private float flashlightSpotAngle = 52f;
     [SerializeField] private float flashlightInnerSpotAngle = 28f;
     [SerializeField] private LightShadows flashlightShadows = LightShadows.None;
-    [SerializeField] private float flashlightBatteryLifeSeconds = 180f;
+    [SerializeField] private float flashlightBatteryLifeSeconds = 240f;
 
     private CharacterController characterController;
     private SingleItemInventory inventory;
@@ -232,7 +232,29 @@ public class FirstPersonController : MonoBehaviour
 
     private void EnsureStartingFlashlightItem()
     {
-        if (!enableStartingFlashlight || cameraPivot == null || inventory == null || inventory.HasItem)
+        if (!enableStartingFlashlight || cameraPivot == null || inventory == null)
+        {
+            return;
+        }
+
+        FlashlightItem existingFlashlight = inventory.HeldPickup != null
+            ? inventory.HeldPickup.GetComponent<FlashlightItem>()
+            : null;
+        if (existingFlashlight != null)
+        {
+            existingFlashlight.ConfigureLight(
+                flashlightBatteryLifeSeconds,
+                flashlightColor,
+                flashlightIntensity,
+                flashlightRange,
+                flashlightSpotAngle,
+                flashlightInnerSpotAngle,
+                flashlightShadows,
+                refillBattery: true);
+            return;
+        }
+
+        if (inventory.HasItem)
         {
             return;
         }
@@ -259,7 +281,8 @@ public class FirstPersonController : MonoBehaviour
             flashlightRange,
             flashlightSpotAngle,
             flashlightInnerSpotAngle,
-            flashlightShadows);
+            flashlightShadows,
+            refillBattery: true);
 
         inventory.TryPickup(pickup);
     }
