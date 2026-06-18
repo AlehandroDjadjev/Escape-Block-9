@@ -1914,7 +1914,11 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
             if (!positionsByIndex[i].HasValue) continue;
             if (!teacherBySlug.TryGetValue(TeacherSlots[i].slug, out var teacher)) continue;
             teacher.transform.position = positionsByIndex[i].Value;
-            teacher.SetNetworkControlled(localPlayerIsKeyHider);
+            // Each client runs the teacher AI locally so they actually move for BOTH
+            // players. (The networked-authority design relied on a custom teacher_state
+            // message the hosted relay drops, which left the Key Hider's teachers
+            // frozen.) Teachers start at the placed spot, then wander/chase locally.
+            teacher.SetNetworkControlled(false);
             moved++;
         }
         Debug.Log($"[SetupPhase] Teachers moved to placed positions: {moved}/{TeacherSlots.Length}.");
@@ -1959,6 +1963,11 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
 
     private void ApplyTeacherState(MultiplayerTeacherStateDto state)
     {
+        // Teachers now run locally on every client (see ApplyTeacherPlacements), so we
+        // ignore networked teacher states entirely — applying them would re-freeze the
+        // local AI and, since the relay drops these messages anyway, they rarely arrive.
+        return;
+#pragma warning disable CS0162 // unreachable code kept for the teammate's networked design
         if (state == null || state.seq <= 0 || string.IsNullOrWhiteSpace(state.teacherId))
         {
             return;
@@ -1986,6 +1995,7 @@ public sealed class EscapeBlock9MultiplayerRuntime : MonoBehaviour
                 MultiplayerJson.ArrayToVector(state.lastKnownPlayerPosition));
             return;
         }
+#pragma warning restore CS0162
     }
 
     private void ApplyKeyState(MultiplayerKeyStateDto state)
