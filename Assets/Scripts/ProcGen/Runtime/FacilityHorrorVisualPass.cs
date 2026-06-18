@@ -255,16 +255,17 @@ namespace EscapeBlock9.ProcGen.Runtime
             bool xSide = random.NextDouble() > 0.5;
             bool maxSide = random.NextDouble() > 0.5;
             float y = Mathf.Lerp(bounds.min.y + 0.8f, bounds.max.y - 0.45f, (float)random.NextDouble());
-            float x = xSide ? (maxSide ? bounds.max.x - 0.018f : bounds.min.x + 0.018f) : Mathf.Lerp(bounds.min.x, bounds.max.x, (float)random.NextDouble());
-            float z = !xSide ? (maxSide ? bounds.max.z - 0.018f : bounds.min.z + 0.018f) : Mathf.Lerp(bounds.min.z, bounds.max.z, (float)random.NextDouble());
+            float x = xSide ? (maxSide ? bounds.max.x - 0.02f : bounds.min.x + 0.02f) : Mathf.Lerp(bounds.min.x, bounds.max.x, (float)random.NextDouble());
+            float z = !xSide ? (maxSide ? bounds.max.z - 0.02f : bounds.min.z + 0.02f) : Mathf.Lerp(bounds.min.z, bounds.max.z, (float)random.NextDouble());
             float width = Mathf.Lerp(0.85f, Mathf.Max(1.1f, xSide ? bounds.size.z * 0.42f : bounds.size.x * 0.42f), (float)random.NextDouble());
             float height = Mathf.Lerp(0.85f, Mathf.Max(0.9f, bounds.size.y * 0.42f), (float)random.NextDouble());
-            Vector3 scale = xSide ? new Vector3(0.03f, height, width) : new Vector3(width, height, 0.03f);
-            Quaternion rotation = Quaternion.Euler(
-                (float)random.NextDouble() * 10f - 5f,
-                xSide ? 0f : 0f,
-                (float)random.NextDouble() * 8f - 4f);
-            AddPrimitive(parent, $"HorrorWallStain_{index}", new Vector3(x, y, z), rotation, scale, material);
+            Vector3 normal = xSide
+                ? (maxSide ? Vector3.left : Vector3.right)
+                : (maxSide ? Vector3.back : Vector3.forward);
+            Vector3 position = new Vector3(x, y, z) + normal * 0.03f;
+            Quaternion rotation = Quaternion.LookRotation(-normal, Vector3.up) *
+                                  Quaternion.Euler(0f, 0f, (float)random.NextDouble() * 14f - 7f);
+            AddDecalQuad(parent, $"HorrorWallStain_{index}", position, rotation, new Vector2(width, height), material);
         }
 
         private static void AddFloorShadow(Transform parent, Bounds bounds, System.Random random, Material material, int index)
@@ -273,8 +274,9 @@ namespace EscapeBlock9.ProcGen.Runtime
             float z = Mathf.Lerp(bounds.min.z + 0.45f, bounds.max.z - 0.45f, (float)random.NextDouble());
             float sx = Mathf.Lerp(0.95f, Mathf.Max(1.2f, bounds.size.x * 0.56f), (float)random.NextDouble());
             float sz = Mathf.Lerp(0.75f, Mathf.Max(0.95f, bounds.size.z * 0.44f), (float)random.NextDouble());
-            Quaternion rotation = Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f);
-            AddPrimitive(parent, $"HorrorFloorShadow_{index}", new Vector3(x, bounds.min.y + 0.026f, z), rotation, new Vector3(sx, 0.035f, sz), material);
+            float yaw = (float)random.NextDouble() * 360f;
+            Quaternion rotation = Quaternion.Euler(90f, yaw, 0f);
+            AddDecalQuad(parent, $"HorrorFloorShadow_{index}", new Vector3(x, bounds.min.y + 0.03f, z), rotation, new Vector2(sx, sz), material);
         }
 
         private static void AddCeilingLeak(Transform parent, Bounds bounds, System.Random random, Material material, int index)
@@ -283,35 +285,37 @@ namespace EscapeBlock9.ProcGen.Runtime
             float z = Mathf.Lerp(bounds.min.z + 0.35f, bounds.max.z - 0.35f, (float)random.NextDouble());
             float width = Mathf.Lerp(0.7f, Mathf.Max(0.8f, bounds.size.x * 0.28f), (float)random.NextDouble());
             float depth = Mathf.Lerp(0.5f, Mathf.Max(0.65f, bounds.size.z * 0.24f), (float)random.NextDouble());
-            Vector3 scale = new Vector3(width, 0.02f, depth);
-            Quaternion rotation = Quaternion.Euler(0f, (float)random.NextDouble() * 360f, (float)random.NextDouble() * 6f - 3f);
-            AddPrimitive(parent, $"HorrorCeilingLeak_{index}", new Vector3(x, bounds.max.y - 0.05f, z), rotation, scale, material);
+            float yaw = (float)random.NextDouble() * 360f;
+            Quaternion rotation = Quaternion.Euler(-90f, yaw, (float)random.NextDouble() * 8f - 4f);
+            AddDecalQuad(parent, $"HorrorCeilingLeak_{index}", new Vector3(x, bounds.max.y - 0.03f, z), rotation, new Vector2(width, depth), material);
         }
 
         private static void AddCornerShadow(Transform parent, Bounds bounds, System.Random random, Material material, int index)
         {
             bool useMinX = random.NextDouble() > 0.5;
             bool useMinZ = random.NextDouble() > 0.5;
-            float x = useMinX ? bounds.min.x + 0.08f : bounds.max.x - 0.08f;
-            float z = useMinZ ? bounds.min.z + 0.08f : bounds.max.z - 0.08f;
+            float x = useMinX ? bounds.min.x + 0.04f : bounds.max.x - 0.04f;
+            float z = useMinZ ? bounds.min.z + 0.04f : bounds.max.z - 0.04f;
             float height = Mathf.Lerp(1.6f, Mathf.Max(1.8f, bounds.size.y * 0.82f), (float)random.NextDouble());
             float width = Mathf.Lerp(0.22f, 0.38f, (float)random.NextDouble());
-            AddPrimitive(
+            Vector3 diagonal = new Vector3(useMinX ? 1f : -1f, 0f, useMinZ ? 1f : -1f).normalized;
+            Quaternion rotation = Quaternion.LookRotation(-diagonal, Vector3.up);
+            AddDecalQuad(
                 parent,
                 $"HorrorCornerShadow_{index}",
-                new Vector3(x, bounds.min.y + (height * 0.5f), z),
-                Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f),
-                new Vector3(width, height, width),
+                new Vector3(x, bounds.min.y + (height * 0.5f), z) + diagonal * 0.04f,
+                rotation,
+                new Vector2(width, height),
                 material);
         }
 
-        private static void AddPrimitive(Transform parent, string name, Vector3 position, Quaternion rotation, Vector3 scale, Material material)
+        private static void AddDecalQuad(Transform parent, string name, Vector3 position, Quaternion rotation, Vector2 size, Material material)
         {
-            GameObject primitive = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            GameObject primitive = GameObject.CreatePrimitive(PrimitiveType.Quad);
             primitive.name = name;
-            primitive.transform.SetPositionAndRotation(position, rotation);
-            primitive.transform.localScale = scale;
             primitive.transform.SetParent(parent, true);
+            primitive.transform.SetPositionAndRotation(position, rotation);
+            primitive.transform.localScale = new Vector3(size.x, size.y, 1f);
 
             Collider collider = primitive.GetComponent<Collider>();
             if (collider != null)
